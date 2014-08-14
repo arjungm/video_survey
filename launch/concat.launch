@@ -5,7 +5,7 @@
   <arg name="resources" />
   <arg name="videos" />
   
-  <node name="concat_node" pkg="moveit_recorder" type="concat_node" 
+  <node name="concat_node" pkg="video_survey" type="concat_node" 
     args="--save_dir $(arg save_dir) --prefix $(arg prefix) --resources $(arg resources) --videos $(arg videos)"
     respawn="false" output="screen">
   </node>

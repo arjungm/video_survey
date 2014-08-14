@@ -43,7 +43,7 @@
   <arg name="animation_status_topic" default="animation_status" />
   <arg name="save_dir" default="$(find moveit_recorder)/videos/" />
 
-  <node name="start_goal_playback" pkg="moveit_recorder" type="start_goal_playback" 
+  <node name="start_goal_playback" pkg="video_survey" type="start_goal_playback" 
     args="--views $(arg views)
           --camera_topic $(arg camera_topic)
           --planning_scene_topic $(arg planning_scene_topic)
