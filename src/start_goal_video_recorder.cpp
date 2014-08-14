@@ -41,8 +41,8 @@
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
 
+#include "video_survey/experiment_utils.h"
 #include <moveit_recorder/utils.h>
-#include <moveit_recorder/experiment_utils.h>
 #include <moveit_recorder/trajectory_video_lookup.h>
 #include <moveit_recorder/trajectory_retimer.h>
 #include <moveit_recorder/animation_recorder.h>
