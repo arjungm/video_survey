@@ -115,20 +115,23 @@ include_directories(${EIGEN_INCLUDE_DIRS})
 # target_link_libraries(video_survey_node
 #   ${catkin_LIBRARIES}
 
+add_library(experiment_utils src/experiment_utils.cpp)
+target_link_libraries(experiment_utils ${Boost_LIBRARIES} ${catkin_LIBRARIES})
+
 add_executable(uploader_node src/youtube_upload_script_node.cpp)
-target_link_libraries(uploader_node moveit_recorder_lib ${catkin_LIBRARIES})
+target_link_libraries(uploader_node experiment_utils ${catkin_LIBRARIES})
 
 add_executable(experiment_node src/youtube_url_to_experiment_creator.cpp)
-target_link_libraries(experiment_node moveit_recorder_lib ${catkin_LIBRARIES})
+target_link_libraries(experiment_node experiment_utils ${catkin_LIBRARIES})
 
 add_executable(split_screen_creator_node src/split_screen_creator.cpp)
-target_link_libraries(split_screen_creator_node moveit_recorder_lib ${catkin_LIBRARIES})
+target_link_libraries(split_screen_creator_node experiment_utils ${catkin_LIBRARIES})
 
 add_executable(start_goal_playback src/start_goal_video_recorder.cpp)
-target_link_libraries(start_goal_playback moveit_recorder_lib ${catkin_LIBRARIES})
+target_link_libraries(start_goal_playback experiment_utils ${catkin_LIBRARIES})
 
 add_executable(concat_node src/concatenate_videos.cpp)
-target_link_libraries(concat_node moveit_recorder_lib ${catkin_LIBRARIES})
+target_link_libraries(concat_node experiment_utils ${catkin_LIBRARIES})
 
 # )
 
