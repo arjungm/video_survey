@@ -61,8 +61,9 @@ int main(int argc, char** argv)
   boost::program_options::options_description desc;
   desc.add_options()
     ("help", "Show help message")
-    ("regex", boost::program_options::value<std::string>(), "Regex of named videos to experiment with")
-    ("save_dir",boost::program_options::value<std::string>(), "Directory for videos");
+    ("regexes", boost::program_options::value< vector<string> >()->multitoken(), "Regexes of named resources to compose experiment with")
+    ("labels", boost::program_options::value< vector<string> >()->multitoken(), "Labels of named resources to compose experiment with")
+    ("save_dir",boost::program_options::value<string>(), "Directory for videos");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
   boost::program_options::store(po, vm);
@@ -76,11 +77,11 @@ int main(int argc, char** argv)
 
   try
   {
-    std::string save_dir = utils::get_option(vm, "save_dir", "");
-    boost::regex start_regex(utils::get_option(vm, "start_regex", "startimg"));
-    boost::regex goal_regex(utils::get_option(vm, "goal_regex", "goalimg"));
+    string save_dir = utils::get_option(vm, "save_dir", "");
+    
+    vector<string> regex_list = vm.count("regexes") ? vm["regexes"].as<vector<string> >(): vector<string>();
+    vector<string> label_list = vm.count("labels") ? vm["labels"].as<vector<string> >(): vector<string>();
 
-    boost::regex vid_regex(utils::get_option(vm, "regex", "view."));
     boost::filesystem::path save_directory(save_dir);
     boost::filesystem::path experiment_file = save_directory / "experiment.csv";
 
@@ -94,69 +95,50 @@ int main(int argc, char** argv)
     std::ofstream file;
     file.open(experiment_file.string().c_str());
     
-    // count the number of videos
-    size_t min_num_tags = 0;
+    // tag line for amazon exp file is "video1, video2, ... videoN"
+    for(size_t i=0; i< label_list.size(); ++i)
+    {
+      file << label_list[i];
+      file << ((i!=(label_list.size()-1))?",":"\n");
+    }
+    
+    // for all trajectories in look up
     TrajectoryVideoLookup::iterator traj_it = video_lookup_table.begin();
     for(; traj_it!=video_lookup_table.end();++traj_it)
     {
-      size_t num_videos=0;
-      TrajectoryVideoLookupEntry::iterator video_it = traj_it->second.begin();
-      for(; video_it!=traj_it->second.end();++video_it)
+      vector<string> assignment_resources;
+      bool has_all_fields = false;
+      
+      // for each required named resource
+      vector<string>::iterator regex_it = regex_list.begin();
+      for(; regex_it!=regex_list.end();++regex_it)
       {
+        boost::regex resource_regex( *regex_it );
         boost::cmatch matches;
-        if(boost::regex_match( video_it->name.c_str(), matches, vid_regex ))
+
+        //search for resource
+        TrajectoryVideoLookupEntry::iterator video_it = traj_it->second.begin();
+        for(; video_it!=traj_it->second.end();++video_it)
         {
-          num_videos++;
+          if(boost::regex_match( video_it->name.c_str(), matches, resource_regex))
+            assignment_resources.push_back( video_it->url );
         }
       }
-      min_num_tags = (min_num_tags<num_videos)?num_videos:min_num_tags;
-    }
-    ROS_INFO("Minimum number of experiment tags need %d", (int) min_num_tags);
 
-    // tag line for amazon exp file is "video1, video2, ... videoN"
-    for(size_t i=0; i<min_num_tags; ++i)
-    {
-      file << "video";
-      file << (i+1);
-      file << ",";
-    }
-    file << "start_img";
-    file << ",";
-    file << "goal_img";
-    file << "\n";
-
-    bool put_newline = false;
-    traj_it = video_lookup_table.begin();
-    for(; traj_it!=video_lookup_table.end();++traj_it)
-    {
-      size_t num_videos=0;
-      TrajectoryVideoLookupEntry::iterator video_it = traj_it->second.begin();
-
-      while( num_videos<min_num_tags && video_it!=traj_it->second.end() )
+      if(assignment_resources.size()!=regex_list.size())
       {
-        boost::cmatch matches;
-        if(boost::regex_match( video_it->name.c_str(), matches, vid_regex ))
-        {
-          std::string url = utils::youtube::getYoutubeEmbedURL(video_it->url);
-          file << url;
-          file << ",";
-          num_videos++;
-        }
-        video_it++;
-        if(video_it==traj_it->second.end())
-          video_it = traj_it->second.begin();
-
+        // not enough resources for this trajectory
+        // notify and skip adding it
+        ROS_WARN("Not enough matching named resources, skipping %s", traj_it->first.c_str());
+        continue;
       }
-      video_it = traj_it->second.begin();
-      for(;video_it!=traj_it->second.end();++video_it)
+      
+      // else put to file
+      for(size_t i=0; i<assignment_resources.size(); ++i)
       {
-        boost::cmatch matches;
-        if(boost::regex_match( video_it->name.c_str(), matches, start_regex))
-          file << video_it->url << ",";
-        if(boost::regex_match( video_it->name.c_str(), matches, goal_regex))
-          file << video_it->url << "\n";
+        file << assignment_resources[i];
+        file << ((i!=(assignment_resources.size()-1))?",":"\n");
       }
-      put_newline=true;
     }
     file.close();
   }

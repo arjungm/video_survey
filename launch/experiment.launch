@@ -1,9 +1,10 @@
 <launch>
   <arg name="save_dir" default="$(find moveit_recorder)/videos" />
-  <arg name="regex" default="view." />
+  <arg name="regexes" default="split startimg goalimg" />
+  <arg name="labels" default="video start_img goal_img" />
 
   <node name="experiment_node" pkg="video_survey" type="experiment_node" 
-    args="--save_dir $(arg save_dir) --regex $(arg regex)" 
+    args="--save_dir $(arg save_dir) --regexes $(arg regexes) --labels $(arg labels)" 
     respawn="false" output="screen">
   </node>
   
