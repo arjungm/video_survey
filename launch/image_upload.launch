@@ -1,0 +1,21 @@
+<launch>
+
+  <arg name="token" />
+  <arg name="folder_name" default="SRI_Videos" />
+  <arg name="folder_id" default="0B71Ei5A1Hd83cEV3c3V3X0hjVWM"/>
+  <arg name="save_dir" default="$(find moveit_recorder)/videos" />
+  <arg name="regex" default="startimg" />
+  <arg name="script" default="$(find video_survey)/scripts/upload.sh" />
+
+  <node name="img_uploader_node" pkg="video_survey" type="img_uploader_node" 
+    args="--save_dir $(arg save_dir)
+          --regex $(arg regex)
+          --token $(arg token)
+          --folder_id $(arg folder_id)
+          --script $(arg script)
+          --folder_name $(arg folder_name)"
+    respawn="false" output="screen">
+  </node>
+  
+</launch>
+
