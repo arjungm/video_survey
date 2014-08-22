@@ -8,7 +8,7 @@
 
   <arg name="config" default="true" />
   <arg unless="$(arg config)" name="command_args" default="" />
-  <arg     if="$(arg config)" name="command_args" default="-d $(find moveit_recorder)/launch/recordit.rviz" />
+  <arg     if="$(arg config)" name="command_args" default="-d $(find moveit_recorder)/launch/poseit.rviz" />
 
   <include file="$(find pr2_moveit_config)/launch/planning_context.launch">
     <arg name="load_robot_description" value="true"/>
@@ -34,21 +34,15 @@
     <rosparam command="load" file="$(find pr2_moveit_config)/config/kinematics.yaml"/>
   </node>
 
-  <!-- LAUNCH PLAYBACK NODE -->
+  <!-- LAUNCH vis NODE -->
 
-  <arg name="views" default="$(find moveit_recorder)/videos/view.bag" />
-  <arg name="camera_topic" default="/rviz/camera_placement" />
   <arg name="planning_scene_topic" default="planning_scene" />
-  <arg name="display_traj_topic" default="/move_group/display_planned_path" />
-  <arg name="animation_status_topic" default="animation_status" />
+  <arg name="display_pose_topic" default="/visualize_state" />
   <arg name="save_dir" default="$(find moveit_recorder)/videos/" />
 
   <node name="start_goal_playback" pkg="video_survey" type="start_goal_playback" 
-    args="--views $(arg views)
-          --camera_topic $(arg camera_topic)
-          --planning_scene_topic $(arg planning_scene_topic)
-          --display_traj_topic $(arg display_traj_topic)
-          --animation_status_topic $(arg animation_status_topic)
+    args="--planning_scene_topic $(arg planning_scene_topic)
+          --display_pose_topic $(arg display_pose_topic)
           --save_dir $(arg save_dir)" launch-prefix="$(arg launch_prefix)" respawn="false" output="screen">
   </node>
 

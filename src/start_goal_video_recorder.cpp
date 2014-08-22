@@ -45,7 +45,9 @@
 #include <moveit_recorder/utils.h>
 #include <moveit_recorder/trajectory_video_lookup.h>
 #include <moveit_recorder/trajectory_retimer.h>
-#include <moveit_recorder/animation_recorder.h>
+
+#include <rviz_video_recorder/RecorderRequest.h>
+#include <moveit_msgs/DisplayRobotState.h>
 
 using namespace std;
 
@@ -55,15 +57,15 @@ int main(int argc, char** argv)
   ros::NodeHandle node_handle;  
   ros::AsyncSpinner spinner(1);
   spinner.start();
+  
+  //wait for RVIZ;
+  sleep(20);
 
   boost::program_options::options_description desc;
   desc.add_options()
     ("help", "Show help message")
-    ("views",boost::program_options::value<std::string>(), "Bag file for viewpoints")
-    ("camera_topic",boost::program_options::value<std::string>(), "Topic for publishing to the camera position")
     ("planning_scene_topic",boost::program_options::value<std::string>(), "Topic for publishing the planning scene for recording")
-    ("display_traj_topic",boost::program_options::value<std::string>(), "Topic for publishing the trajectory for recorder")
-    ("animation_status_topic",boost::program_options::value<std::string>(), "Topic for listening to the completion of the replay")
+    ("display_pose_topic",boost::program_options::value<std::string>(), "Topic for visualizing state of the robot for recording")
     ("save_dir",boost::program_options::value<std::string>(), "Directory for videos");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
@@ -84,24 +86,28 @@ int main(int argc, char** argv)
     TrajectoryVideoLookup video_lookup_table;
     video_lookup_table.loadFromBag( save_directory.string() );
     ROS_INFO("Opening bag at %s", save_directory.string().c_str());
-    
-    // read the bag file for the viewpoints to use
-    std::string view_bag_name = vm.count("views") ? vm["views"].as<std::string>() : "";
-    std::vector<view_controller_msgs::CameraPlacement> views;
-    utils::rosbag_storage::getViewsFromBag( view_bag_name, views );
-    ROS_INFO("%d views loaded",(int)views.size());
 
     // construct recorder 
-    std::string camera_placement_topic = utils::get_option(vm, "camera_topic", "/rviz/camera_placement");
     std::string planning_scene_topic =utils:: get_option(vm, "planning_scene_topic", "planning_scene");
-    std::string display_traj_topic = utils::get_option(vm, "display_traj_topic", "/move_group/display_planned_path");
-    std::string anim_status_topic = utils::get_option(vm, "animation_status_topic", "animation_status");
-    
-    AnimationRecorder recorder( camera_placement_topic,
-                                planning_scene_topic,
-                                display_traj_topic,
-                                anim_status_topic,
-                                node_handle);
+    std::string display_pose_topic = utils::get_option(vm, "display_pose_topic", "/visualize_state");
+    std::string recorder_command_topic = "/command";
+
+    ros::Publisher rec_pub = node_handle.advertise<rviz_video_recorder::RecorderRequest>(recorder_command_topic, 1, true);
+    ros::Publisher ps_pub = node_handle.advertise<moveit_msgs::PlanningScene>(planning_scene_topic, 1, true);
+    ros::Publisher state_pub = node_handle.advertise<moveit_msgs::DisplayRobotState>(display_pose_topic, 1, true);
+
+    while(rec_pub.getNumSubscribers()<1)
+    {
+      ros::WallDuration sleep_t(0.5);
+      ROS_INFO("[Recorder] Not enough publishers to \"%s\" topic... ", recorder_command_topic.c_str());
+      sleep_t.sleep();
+    }
+    while(state_pub.getNumSubscribers()<1)
+    {
+      ros::WallDuration sleep_t(0.5);
+      ROS_INFO("[Recorder] Not enough publishers to \"%s\" topic... ", display_pose_topic.c_str());
+      sleep_t.sleep();
+    }
 
     // iterate over the table and upload the named videos
     TrajectoryVideoLookup::iterator trajectory_it = video_lookup_table.begin();
@@ -109,55 +115,51 @@ int main(int argc, char** argv)
     {
       std::string traj_id = trajectory_it->first;
       
-      // get display trajectories
       TrajectoryRetimer retimer( "robot_description", trajectory_it->second.mpr.group_name );
       retimer.configure(trajectory_it->second.ps, trajectory_it->second.mpr);
       
-      moveit_msgs::RobotTrajectory start_display = retimer.createDisplayTrajectoryForState(trajectory_it->second.rt, 0, 80);
-      moveit_msgs::RobotTrajectory goal_display = retimer.createDisplayTrajectoryForState(trajectory_it->second.rt, 
-                                                trajectory_it->second.rt.joint_trajectory.points.size()-1, 80);
+      // get display trajectories
+      moveit_msgs::RobotState start_state = retimer.getStartState(trajectory_it->second.rt);
+      moveit_msgs::RobotState goal_state = retimer.getGoalState(trajectory_it->second.rt);
+      moveit_msgs::DisplayRobotState display_state;
+
+      // name the video
+      std::string video_id = boost::str(boost::format("%simg") % "start");
+      std::string video_name = boost::str(boost::format("%s-%s.%s") % traj_id % video_id % "jpg");
+      std::string video_file = (save_directory/video_name).string();
+
+      // publish
+      // ps_pub.publish(trajectory_it->second.ps);
+      display_state.state = start_state;
+      state_pub.publish(display_state);
+
+      // make snapshot
+      rviz_video_recorder::RecorderRequest req;
+      req.command = rviz_video_recorder::RecorderRequest::SCREENSHOT;
+      req.filepath = video_file;
+      sleep(5);
+      rec_pub.publish(req);
+
+      // record the video
+      video_lookup_table.putVideoFile(traj_id, video_id, video_file);
+
+      // goal state
+      video_id = boost::str(boost::format("%simg") % "goal");
+      video_name = boost::str(boost::format("%s-%s.%s") % traj_id % video_id % "jpg");
+      video_file = (save_directory/video_name).string();
+
+      // publish
+      display_state.state = goal_state;
+      state_pub.publish(display_state);
+
+      // make snapshot
+      req.filepath = video_file;
+      sleep(2);
+      rec_pub.publish(req);
       
-      // for each view, record
-      int view_counter=0;
-      std::vector<view_controller_msgs::CameraPlacement>::iterator view_msg;
-      for(view_msg=views.begin(); view_msg!=views.end(); ++view_msg)
-      {
-        // name the video
-        std::string video_id = boost::str(boost::format("%s%d") % "start" % ++view_counter);
-        std::string video_name = boost::str(boost::format("%s-%s.%s") % traj_id % video_id % "ogv");
-        std::string video_file = (save_directory/video_name).string();
-
-        // record the video
-        AnimationRequest req;
-
-        view_msg->time_from_start = ros::Duration(0.001);
-        ros::Time t_now = ros::Time::now();
-        view_msg->eye.header.stamp = t_now;
-        view_msg->focus.header.stamp = t_now;
-        view_msg->up.header.stamp = t_now;
-
-        req.camera_placement = *view_msg;
-        req.planning_scene = trajectory_it->second.ps;
-        req.motion_plan_request = trajectory_it->second.mpr;
-        req.robot_trajectory = start_display;
-        req.filepath = video_file;
-
-        recorder.record(req);
-        recorder.startCapture();
-        video_lookup_table.putVideoFile(traj_id, video_id, video_file);
-
-        // goal state
-        video_id = boost::str(boost::format("%s%d") % "goal" % view_counter);
-        video_name = boost::str(boost::format("%s-%s.%s") % traj_id % video_id % "ogv");
-        video_file = (save_directory/video_name).string();
-        req.robot_trajectory = goal_display;
-        req.filepath = video_file;
-        recorder.record(req);
-        recorder.startCapture();
-        video_lookup_table.putVideoFile(traj_id, video_id, video_file);
-
-      }//views
-    }//traj
+      // save
+      video_lookup_table.putVideoFile(traj_id, video_id, video_file);
+    }
     video_lookup_table.saveToBag( save_directory.string() );
   }
   catch(...)
