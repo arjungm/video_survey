@@ -77,6 +77,9 @@ int main(int argc, char** argv)
   try
   {
     std::string save_dir = utils::get_option(vm, "save_dir", "");
+    boost::regex start_regex(utils::get_option(vm, "start_regex", "startimg"));
+    boost::regex goal_regex(utils::get_option(vm, "goal_regex", "goalimg"));
+
     boost::regex vid_regex(utils::get_option(vm, "regex", "view."));
     boost::filesystem::path save_directory(save_dir);
     boost::filesystem::path experiment_file = save_directory / "experiment.csv";
@@ -115,16 +118,17 @@ int main(int argc, char** argv)
     {
       file << "video";
       file << (i+1);
-      file << ((i+1) < min_num_tags?",":"\n");
+      file << ",";
     }
+    file << "start_img";
+    file << ",";
+    file << "goal_img";
+    file << "\n";
 
     bool put_newline = false;
     traj_it = video_lookup_table.begin();
     for(; traj_it!=video_lookup_table.end();++traj_it)
     {
-      if(put_newline)
-        file << std::endl;
-      
       size_t num_videos=0;
       TrajectoryVideoLookupEntry::iterator video_it = traj_it->second.begin();
 
@@ -135,13 +139,22 @@ int main(int argc, char** argv)
         {
           std::string url = utils::youtube::getYoutubeEmbedURL(video_it->url);
           file << url;
-          if(num_videos < min_num_tags-1)
-            file << ",";
+          file << ",";
           num_videos++;
         }
         video_it++;
         if(video_it==traj_it->second.end())
           video_it = traj_it->second.begin();
+
+      }
+      video_it = traj_it->second.begin();
+      for(;video_it!=traj_it->second.end();++video_it)
+      {
+        boost::cmatch matches;
+        if(boost::regex_match( video_it->name.c_str(), matches, start_regex))
+          file << video_it->url << ",";
+        if(boost::regex_match( video_it->name.c_str(), matches, goal_regex))
+          file << video_it->url << "\n";
       }
       put_newline=true;
     }
