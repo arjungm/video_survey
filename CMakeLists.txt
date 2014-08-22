@@ -121,6 +121,9 @@ target_link_libraries(experiment_utils ${Boost_LIBRARIES} ${catkin_LIBRARIES})
 add_executable(uploader_node src/youtube_upload_script_node.cpp)
 target_link_libraries(uploader_node experiment_utils ${catkin_LIBRARIES})
 
+add_executable(img_uploader_node src/image_upload_script.cpp)
+target_link_libraries(img_uploader_node experiment_utils ${catkin_LIBRARIES})
+
 add_executable(experiment_node src/youtube_url_to_experiment_creator.cpp)
 target_link_libraries(experiment_node experiment_utils ${catkin_LIBRARIES})
 
