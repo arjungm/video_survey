@@ -51,6 +51,33 @@
 
 using namespace std;
 
+void write_experiment_file(const string& filename, const vector<string>& labels, const vector<vector<string> >& entries)
+{
+  ofstream file;
+  ROS_INFO("Saving to experiment file: %s", filename.c_str());
+  file.open(filename.c_str());
+  //write labels
+  file << labels[0];
+  for(size_t i=0; i<labels.size(); ++i)
+  { 
+    file << ",";
+    file << labels[i];
+  }
+  file << "\n";
+  //write entries
+  for(size_t i=0; i<entries.size(); ++i)
+  {
+    file << entries[i][0];
+    for(size_t r=1; r<entries[i].size(); ++r)
+    {
+      file << ",";
+      file << entries[i][r];
+    }
+    file << "\n";
+  }
+  file.close();
+}
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "youtube_url_to_experiment_creator");
@@ -63,6 +90,7 @@ int main(int argc, char** argv)
     ("help", "Show help message")
     ("regexes", boost::program_options::value< vector<string> >()->multitoken(), "Regexes of named resources to compose experiment with")
     ("labels", boost::program_options::value< vector<string> >()->multitoken(), "Labels of named resources to compose experiment with")
+    ("randomize_num", boost::program_options::value<int>(), "Number of sets to create with randomized order")
     ("save_dir",boost::program_options::value<string>(), "Directory for videos");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
@@ -78,31 +106,21 @@ int main(int argc, char** argv)
   try
   {
     string save_dir = utils::get_option(vm, "save_dir", "");
+
+    int randomize_num = vm.count("randomize_num") ? vm["randomize_num"].as<int>() : 0;
     
     vector<string> regex_list = vm.count("regexes") ? vm["regexes"].as<vector<string> >(): vector<string>();
     vector<string> label_list = vm.count("labels") ? vm["labels"].as<vector<string> >(): vector<string>();
 
     boost::filesystem::path save_directory(save_dir);
-    boost::filesystem::path experiment_file = save_directory / "experiment.csv";
 
     // read the bag file to get the file names
     ROS_INFO("Opening bag at %s", save_directory.string().c_str());
     TrajectoryVideoLookup video_lookup_table;
     video_lookup_table.loadFromBag( save_directory.string() );
 
-    // iterate over the keys in the map and save to CSV
-    ROS_INFO("Saving to experiment file: %s", experiment_file.string().c_str());
-    std::ofstream file;
-    file.open(experiment_file.string().c_str());
-    
-    // tag line for amazon exp file is "video1, video2, ... videoN"
-    for(size_t i=0; i< label_list.size(); ++i)
-    {
-      file << label_list[i];
-      file << ((i!=(label_list.size()-1))?",":"\n");
-    }
-    
     // for all trajectories in look up
+    vector< vector<string> > assignments;
     TrajectoryVideoLookup::iterator traj_it = video_lookup_table.begin();
     for(; traj_it!=video_lookup_table.end();++traj_it)
     {
@@ -134,13 +152,26 @@ int main(int argc, char** argv)
       }
       
       // else put to file
-      for(size_t i=0; i<assignment_resources.size(); ++i)
+      assignments.push_back( assignment_resources );
+    }
+    if( assignments.size() == 0 )
+      ROS_ERROR("No trajectories had all the named resources!");
+
+    
+    // randomization options
+    if(randomize_num!=0)
+    {
+      for(int i=0; i<randomize_num; ++i)
       {
-        file << assignment_resources[i];
-        file << ((i!=(assignment_resources.size()-1))?",":"\n");
+        boost::filesystem::path experiment_file = save_directory / boost::str(boost::format("%s%d.csv") % "experiment" % i);
+        random_shuffle(assignments.begin(), assignments.end());
+        write_experiment_file(experiment_file.string(), label_list, assignments);
       }
     }
-    file.close();
+    else
+    {
+      write_experiment_file("experiment.csv", label_list, assignments);
+    }
   }
   catch(...)
   {
