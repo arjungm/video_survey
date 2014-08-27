@@ -16,7 +16,7 @@ namespace utils
 
   namespace youtube
   {
-    bool isYouTubeLink(const std::string& str);
+    bool isYoutubeLink(const std::string& str);
     std::string getYoutubeVideoID(std::string url);
     std::string getYoutubeEmbedURL(const std::string& url);
   }

@@ -3,6 +3,7 @@
 #include <cstdio>
 
 #include <boost/filesystem.hpp>
+#include <boost/format.hpp>
 
 std::string utils::system::runCommand(const std::string& command)
 {
@@ -16,7 +17,7 @@ std::string utils::system::runCommand(const std::string& command)
   return response_str;
 }
 
-bool utils::youtube::isYouTubeLink(const std::string& str)
+bool utils::youtube::isYoutubeLink(const std::string& str)
 {
   if(str.length() < 22)
     return false;
@@ -38,5 +39,8 @@ std::string utils::youtube::getYoutubeVideoID(std::string url)
 
 std::string utils::youtube::getYoutubeEmbedURL(const std::string& url)
 {
-  return "//www.youtube.com/embed/"+getYoutubeVideoID(url);
+  std::string id = getYoutubeVideoID(url);
+  return boost::str(boost::format("%s%s")
+                                  % "//www.youtube.com/embed/"
+                                  % id);
 }
