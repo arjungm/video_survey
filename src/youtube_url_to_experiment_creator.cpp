@@ -58,7 +58,7 @@ void write_experiment_file(const string& filename, const vector<string>& labels,
   file.open(filename.c_str());
   //write labels
   file << labels[0];
-  for(size_t i=0; i<labels.size(); ++i)
+  for(size_t i=1; i<labels.size(); ++i)
   { 
     file << ",";
     file << labels[i];
@@ -67,11 +67,15 @@ void write_experiment_file(const string& filename, const vector<string>& labels,
   //write entries
   for(size_t i=0; i<entries.size(); ++i)
   {
-    file << entries[i][0];
+    if(utils::youtube::isYoutubeLink(entries[i][0]))
+      file << utils::youtube::getYoutubeEmbedURL(entries[i][0]);
     for(size_t r=1; r<entries[i].size(); ++r)
     {
       file << ",";
-      file << entries[i][r];
+      if(utils::youtube::isYoutubeLink(entries[i][r]))
+        file << utils::youtube::getYoutubeEmbedURL(entries[i][r]);
+      else
+        file << entries[i][r];
     }
     file << "\n";
   }
@@ -170,7 +174,8 @@ int main(int argc, char** argv)
     }
     else
     {
-      write_experiment_file("experiment.csv", label_list, assignments);
+      std::string exp_file = (save_directory / "experiment.csv").string();
+      write_experiment_file( exp_file , label_list, assignments);
     }
   }
   catch(...)
