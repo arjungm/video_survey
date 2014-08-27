@@ -124,7 +124,7 @@ int main(int argc, char** argv)
           std::string response_str = utils::system::runCommand( upload_command );
           
           // check if a youtube link
-          while( !utils::youtube::isYouTubeLink( response_str ) )
+          while( !utils::youtube::isYoutubeLink( response_str ) )
           {
             ROS_WARN("Failed to upload. Retrying...");
             response_str = utils::system::runCommand( upload_command );
