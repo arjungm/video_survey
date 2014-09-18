@@ -126,7 +126,7 @@ int main(int argc, char** argv)
 
           std::cout << upload_command << std::endl;
 
-          std::string response_str = utils::system::runCommand( upload_command );
+          std::string response_str = exp_utils::system::runCommand( upload_command );
           // if yes, save to bag under /url/videoname/viewname
           video_it->url = boost::str(boost::format("%s/%s/%s") % url % folder_id % title_name);
         }
