@@ -5,7 +5,7 @@
   <arg name="save_dir" default="$(find moveit_recorder)/videos" />
   <arg name="regex" default="view." />
 
-  <node name="uploader_node" pkg="moveit_recorder" type="uploader_node" 
+  <node name="uploader_node" pkg="video_survey" type="uploader_node" 
     args="--save_dir $(arg save_dir)
           --regex $(arg regex)
           --user $(arg user)
