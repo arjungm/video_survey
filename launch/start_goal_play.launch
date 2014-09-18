@@ -38,12 +38,14 @@
 
   <arg name="planning_scene_topic" default="planning_scene" />
   <arg name="display_pose_topic" default="/visualize_state" />
+  <arg name="camera_topic" default="/rviz/camera_placement" />
   <arg name="save_dir" default="$(find moveit_recorder)/videos/" />
+  <arg name="reset" default="false" />
 
   <node name="start_goal_playback" pkg="video_survey" type="start_goal_playback" 
     args="--planning_scene_topic $(arg planning_scene_topic)
           --display_pose_topic $(arg display_pose_topic)
-          --save_dir $(arg save_dir)" launch-prefix="$(arg launch_prefix)" respawn="false" output="screen">
+          --save_dir $(arg save_dir) --reset $(arg reset)" launch-prefix="$(arg launch_prefix)" respawn="false" output="screen">
   </node>
 
 </launch>
