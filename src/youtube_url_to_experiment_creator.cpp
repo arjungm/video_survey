@@ -67,13 +67,13 @@ void write_experiment_file(const string& filename, const vector<string>& labels,
   //write entries
   for(size_t i=0; i<entries.size(); ++i)
   {
-    if(utils::youtube::isYoutubeLink(entries[i][0]))
-      file << utils::youtube::getYoutubeEmbedURL(entries[i][0]);
+    if(exp_utils::youtube::isYoutubeLink(entries[i][0]))
+      file << exp_utils::youtube::getYoutubeEmbedURL(entries[i][0]);
     for(size_t r=1; r<entries[i].size(); ++r)
     {
       file << ",";
-      if(utils::youtube::isYoutubeLink(entries[i][r]))
-        file << utils::youtube::getYoutubeEmbedURL(entries[i][r]);
+      if(exp_utils::youtube::isYoutubeLink(entries[i][r]))
+        file << exp_utils::youtube::getYoutubeEmbedURL(entries[i][r]);
       else
         file << entries[i][r];
     }

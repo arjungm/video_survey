@@ -46,7 +46,7 @@
 #include <boost/format.hpp>
 #include <boost/regex.hpp>
 
-#include "video_survey/experiment_utils.h"
+#include <video_survey/experiment_utils.h>
 #include <moveit_recorder/utils.h>
 #include <moveit_recorder/trajectory_video_lookup.h>
 
@@ -121,13 +121,13 @@ int main(int argc, char** argv)
                                        % title_flag
                                        % video_it->file);
 
-          std::string response_str = utils::system::runCommand( upload_command );
+          std::string response_str = exp_utils::system::runCommand( upload_command );
           
           // check if a youtube link
-          while( !utils::youtube::isYoutubeLink( response_str ) )
+          while( !exp_utils::youtube::isYoutubeLink( response_str ) )
           {
             ROS_WARN("Failed to upload. Retrying...");
-            response_str = utils::system::runCommand( upload_command );
+            response_str = exp_utils::system::runCommand( upload_command );
           }
           // if yes, save to bag under /url/videoname/viewname
           response_str.erase(std::remove(response_str.begin(), response_str.end(), '\n'), response_str.end());

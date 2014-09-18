@@ -105,7 +105,7 @@ int main(int argc, char** argv)
                                                                                     % "ogv")).string();
         std::string combine_command = boost::str(boost::format("ffmpeg -i %s -i %s -i %s -i %s -filter_complex \'[0:v]scale=iw/2:ih/2[rescale1];[1:v]scale=iw/2:ih/2[rescale2];[2:v]scale=iw/2:ih/2[rescale3];[3:v]scale=iw/2:ih/2[rescale4];[rescale1]pad=2*iw:2*ih[topleft];[topleft][rescale2]overlay=W/2:0[topright];[topright][rescale3]overlay=0:H/2[bottomleft];[bottomleft][rescale4]overlay=W/2:H/2[final]\' -map [final] -b 10000k %s") %videos[0] %videos[1] %videos[2] %videos[3] %combined);
         
-        std::string response = utils::system::runCommand(combine_command);
+        std::string response = exp_utils::system::runCommand(combine_command);
 
         video_lookup_table.putVideoFile(traj_it->first, splitscreen_prefix, combined);
       }
