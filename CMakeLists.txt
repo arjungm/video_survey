@@ -85,6 +85,8 @@ find_package(Eigen REQUIRED)
 catkin_package(
   INCLUDE_DIRS
     include
+  LIBRARIES
+    experiment_utils
 )
 
 ###########
@@ -133,8 +135,14 @@ target_link_libraries(split_screen_creator_node experiment_utils ${catkin_LIBRAR
 add_executable(start_goal_playback src/start_goal_video_recorder.cpp)
 target_link_libraries(start_goal_playback experiment_utils ${catkin_LIBRARIES})
 
-add_executable(concat_node src/concatenate_videos.cpp)
-target_link_libraries(concat_node experiment_utils ${catkin_LIBRARIES})
+add_executable(create_cfg src/cfg_creator.cpp)
+target_link_libraries(create_cfg ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(cfg_debug src/cfg_debug.cpp)
+target_link_libraries(cfg_debug ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(compute_features src/feature_computation.cpp)
+target_link_libraries(compute_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # )
 
