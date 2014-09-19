@@ -37,6 +37,7 @@
 #include <map>
 #include <fstream>
 #include <iostream>
+#include <algorithm>
 
 #include <ros/ros.h>
 
@@ -51,11 +52,14 @@
 
 using namespace std;
 
-void write_experiment_file(const string& filename, const vector<string>& labels, const vector<vector<string> >& entries)
+void write_experiment_file(const string& filename, const vector<string>& labels, const vector<vector<string> >& entries,
+                            vector<string> control_videos, vector<string> options, const string& lead, const string& head)
 {
   ofstream file;
   ROS_INFO("Saving to experiment file: %s", filename.c_str());
   file.open(filename.c_str());
+  //term labels
+  file << lead;
   //write labels
   file << labels[0];
   for(size_t i=1; i<labels.size(); ++i)
@@ -65,8 +69,25 @@ void write_experiment_file(const string& filename, const vector<string>& labels,
   }
   file << "\n";
   //write entries
+  vector<string>::iterator control_it = control_videos.begin();
   for(size_t i=0; i<entries.size(); ++i)
   {
+    //terms
+    file << head;
+    //options
+    random_shuffle(options.begin(), options.end());
+    for(vector<string>::iterator o=options.begin();o!=options.end();++o)
+      file << *o << ",";
+    //control
+    if(control_it==control_videos.end())
+    {
+      random_shuffle(control_videos.begin(), control_videos.end());
+      control_it = control_videos.begin();
+    }
+    file << *control_it;
+    file << ",";
+    control_it++;
+    //assignement
     if(exp_utils::youtube::isYoutubeLink(entries[i][0]))
       file << exp_utils::youtube::getYoutubeEmbedURL(entries[i][0]);
     for(size_t r=1; r<entries[i].size(); ++r)
@@ -95,6 +116,7 @@ int main(int argc, char** argv)
     ("regexes", boost::program_options::value< vector<string> >()->multitoken(), "Regexes of named resources to compose experiment with")
     ("labels", boost::program_options::value< vector<string> >()->multitoken(), "Labels of named resources to compose experiment with")
     ("randomize_num", boost::program_options::value<int>(), "Number of sets to create with randomized order")
+    ("control_dir",boost::program_options::value<string>(), "Directory for videos")
     ("save_dir",boost::program_options::value<string>(), "Directory for videos");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
@@ -110,6 +132,7 @@ int main(int argc, char** argv)
   try
   {
     string save_dir = utils::get_option(vm, "save_dir", "");
+    string control_dir = utils::get_option(vm, "control_dir", "");
 
     int randomize_num = vm.count("randomize_num") ? vm["randomize_num"].as<int>() : 0;
     
@@ -117,11 +140,44 @@ int main(int argc, char** argv)
     vector<string> label_list = vm.count("labels") ? vm["labels"].as<vector<string> >(): vector<string>();
 
     boost::filesystem::path save_directory(save_dir);
+    boost::filesystem::path control_directory(control_dir);
 
     // read the bag file to get the file names
     ROS_INFO("Opening bag at %s", save_directory.string().c_str());
     TrajectoryVideoLookup video_lookup_table;
     video_lookup_table.loadFromBag( save_directory.string() );
+    
+    TrajectoryVideoLookup control_lookup_table;
+    control_lookup_table.loadFromBag( control_directory.string() );
+
+    string lead="lower1,upper1,lower2,upper2,lower3,upper3,opt1,opt2,opt3,testurl,";
+    string head="inefficient,efficient,awkward,elegant,rough,smooth,";
+    
+    // shuffle this
+    vector<string> options;
+    options.push_back("Red");
+    options.push_back("Yellow");
+    options.push_back("Green");
+
+    // shuffle this too 
+    vector<string> control_videos;
+    TrajectoryVideoLookup::iterator it = control_lookup_table.begin();
+    for(; it!=control_lookup_table.end();++it)
+    {
+      boost::regex vid_regex("split");
+      boost::cmatch matches;
+      //search for resource
+      TrajectoryVideoLookupEntry::iterator video_it = it->second.begin();
+      for(; video_it!=it->second.end();++video_it)
+      {
+        if(boost::regex_match( video_it->name.c_str(), matches, vid_regex))
+          control_videos.push_back( exp_utils::youtube::getYoutubeVideoID(video_it->url) );
+      }
+    }
+
+    ROS_INFO("%d control videos.", control_videos.size());
+    ROS_INFO("%d options.", options.size());
+
 
     // for all trajectories in look up
     vector< vector<string> > assignments;
@@ -169,13 +225,13 @@ int main(int argc, char** argv)
       {
         boost::filesystem::path experiment_file = save_directory / boost::str(boost::format("%s%d.csv") % "experiment" % i);
         random_shuffle(assignments.begin(), assignments.end());
-        write_experiment_file(experiment_file.string(), label_list, assignments);
+        write_experiment_file(experiment_file.string(), label_list, assignments, control_videos, options, lead, head);
       }
     }
     else
     {
       std::string exp_file = (save_directory / "experiment.csv").string();
-      write_experiment_file( exp_file , label_list, assignments);
+      write_experiment_file( exp_file , label_list, assignments, control_videos, options, lead, head);
     }
   }
   catch(...)
