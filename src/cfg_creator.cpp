@@ -74,7 +74,7 @@ int main(int argc, char** argv)
     outfile << boost::str(boost::format("\n"));
     outfile << boost::str(boost::format("[plugin]\n"));
     outfile << boost::str(boost::format("name=ompl_interface/OMPLPlanner\n"));
-    outfile << boost::str(boost::format("planners=RRTConnectkConfigDefault RRTStarkConfigPathLength RRTStarkConfigMinClearance\n"));
+    outfile << boost::str(boost::format("planners=RRTConnectkConfigDefault\n"));
     outfile << boost::str(boost::format("runs=1\n"));
 
     outfile.close();
