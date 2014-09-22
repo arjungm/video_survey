@@ -45,8 +45,6 @@
 #include <boost/regex.hpp>
 
 #include "video_survey/experiment_utils.h"
-#include "video_survey/feature.h"
-#include "video_survey/allfeats.h"
 
 #include <moveit_recorder/trajectory_video_lookup.h>
 #include <moveit_recorder/trajectory_retimer.h>
@@ -84,10 +82,6 @@ int main(int argc, char** argv)
     TrajectoryVideoLookup video_lookup_table;
     video_lookup_table.loadFromBag( save_directory.string() );
 
-    // add features
-    std::vector<DoubleFeature::Ptr> features;
-    features.push_back(boost::make_shared<ClearanceFeature>());
-    
     // get traj processor
     TrajectoryRetimer trajproc("robot_description");
       

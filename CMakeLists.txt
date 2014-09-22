@@ -6,6 +6,8 @@ project(video_survey)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   view_controller_msgs
+  ecl_containers
+  ecl_geometry
   moveit_msgs
   std_msgs
   rosbag
@@ -87,6 +89,8 @@ catkin_package(
     include
   LIBRARIES
     experiment_utils
+  DEPENDS
+    eigen
 )
 
 ###########
@@ -141,8 +145,11 @@ target_link_libraries(create_cfg ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_executable(cfg_debug src/cfg_debug.cpp)
 target_link_libraries(cfg_debug ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-add_executable(compute_features src/feature_computation.cpp)
-target_link_libraries(compute_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_library(trajectory_features src/features.cpp)
+target_link_libraries(trajectory_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+#add_executable(compute_features src/feature_computation.cpp)
+#target_link_libraries(compute_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # )
 

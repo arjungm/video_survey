@@ -8,8 +8,10 @@ class ClearanceFeature : public DoubleFeature
   public:
     ClearanceFeature() : DoubleFeature("clearance") {}
     ~ClearanceFeature() {}
-    double compute(const planning_scene::PlanningScenePtr& ps, const robot_trajectory::RobotTrajectoryPtr& rt)
+    void compute(const planning_scene::PlanningScenePtr& ps, const robot_trajectory::RobotTrajectoryPtr& rt)
     {
+      values_.clear();
+
       double clearance;
       collision_detection::CollisionRequest req;
       for (std::size_t k = 0 ; k < rt->getWayPointCount() ; ++k)
@@ -22,7 +24,8 @@ class ClearanceFeature : public DoubleFeature
           clearance += d;
       }
       clearance /= (double)rt->getWayPointCount();
-      return clearance;
+
+      values_.push_back(clearance);
     }
 };
 
