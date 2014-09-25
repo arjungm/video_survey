@@ -110,18 +110,16 @@ int main(int argc, char** argv)
       tfeats.computeAll();
       
       // write feature names
-      TrajectoryFeatures::iterator feat = tfeats.begin();
       if( traj_it == video_lookup_table.begin() )
       {
-        featfile << "traj_id";
-        for(; feat!=tfeats.end(); ++feat)
+        featfile << "traj_id,url";
+        for(TrajectoryFeatures::iterator feat = tfeats.begin(); feat!=tfeats.end(); ++feat)
           featfile << "," << feat->first;
         featfile << std::endl;
       }
       // write feature values
-      feat = tfeats.begin();
-      featfile << traj_it->first;
-      for(;feat!=tfeats.end();++feat)
+      featfile << traj_it->first << "," << video_lookup_table.getNamedVideo(traj_it->first, "split").url;
+      for(TrajectoryFeatures::iterator feat = tfeats.begin();feat!=tfeats.end();++feat)
         featfile << "," << feat->second;
       featfile << std::endl;
 

@@ -19,28 +19,37 @@ void TrajectoryFeatures::setRobotTrajectory(robot_trajectory::RobotTrajectoryPtr
   rt_ = rt;
 }
 
+void TrajectoryFeatures::add(const string& name, double value)
+{
+  features_.push_back(make_pair<string,double>(name,value));
+}
+
 void TrajectoryFeatures::computeClearance()
 {
-  double clearance;
+  double arm_clearance = 0.0;
   
   collision_detection::CollisionRequest req;
   for (std::size_t k = 0 ; k < rt_->getWayPointCount() ; ++k)
   {
     collision_detection::CollisionResult res;
-    ps_->checkCollisionUnpadded(req, res, rt_->getWayPoint(k));
-
-    double d = ps_->distanceToCollisionUnpadded(rt_->getWayPoint(k));
+    robot_state::RobotStatePtr rs = rt_->getWayPointPtr(k);
+    rs->update();
+    ps_->checkCollisionUnpadded(req, res, *rs);
+    double d = ps_->distanceToCollisionUnpadded( rt_->getWayPoint(k) );
+    cout << d << endl;
     if (d > 0.0) // in case of collision, distance is negative
-      clearance += d;
+      arm_clearance += d;
   }
-  clearance /= (double)rt_->getWayPointCount();
-  
-  features_.push_back(make_pair("clearance", clearance));
+  arm_clearance = arm_clearance / (double)rt_->getWayPointCount();
+  if(arm_clearance==0.0)
+    cin.get();
+  ROS_INFO("Clearance:%.6f",arm_clearance);
+  add("clearance", arm_clearance);
 }
 
 void TrajectoryFeatures::computeSmoothness()
 {
-  double smoothness;
+  double smoothness = 0.0;
   
   double a = rt_->getWayPoint(0).distance(rt_->getWayPoint(1));
   for (std::size_t k = 2 ; k < rt_->getWayPointCount() ; ++k)
@@ -124,7 +133,7 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
 
   ROS_INFO("\t Compute curvature");
   // compute r'(t), r"(t)
-  double max_curvature = 0.0;
+  double max_curvature = numeric_limits<double>::min();
   for(size_t k=0; k<N; ++k)
   {
     double t=rt_->getWaypointDurationFromStart(k);
@@ -134,7 +143,7 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
     Eigen::Vector3d rdd(xc.dderivative(t),
         yc.dderivative(t),
         zc.dderivative(t));
-    double curv = (rd.cross(rdd)).norm() / pow(rd.norm(),3);
+    double curv = pow(rd.norm(),3) / (rd.cross(rdd)).norm();
     max_curvature = (curv > max_curvature) ? curv : max_curvature;
   }
 
@@ -142,6 +151,8 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
   vector< pair<string,double> > hausdorff_feats = computeHausdorffLine(link_name, xc, yc, zc);
   ROS_INFO("\t Compute DTW");
   double dtw_cost = computeDTW(link_name, xc, yc, zc);
+  ROS_INFO("\t Compute acclerations");
+  double lin_acc = computeSquaredAccelerations(link_name, xc, yc, zc);
 
   features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "length" ), length));
   features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "smoothness") , smoothness)); 
@@ -149,6 +160,7 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
   for(vector<Feat>::iterator i=hausdorff_feats.begin(); i!=hausdorff_feats.end(); ++i)
     features_.push_back(*i);
   features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "DTW"), dtw_cost));
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "lin_acc"), lin_acc));
 }
 
 void TrajectoryFeatures::computeJointLimitDistance()
@@ -174,7 +186,7 @@ void TrajectoryFeatures::computeJointLimitDistance()
   }
 
   // get min distance 
-  double max_min_jdist = 0.0;
+  double max_min_jdist = numeric_limits<double>::min();
   for(size_t k=0; k<rt_->getWayPointCount(); ++k)
   {
     //for each joint
@@ -303,35 +315,107 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
   // i -> spline
   // j -> line
   size_t N = rt_->getWayPointCount();
+  double max_dist = numeric_limits<double>::min();
   for(size_t i=1; i<N; ++i)
-    dtw[ind(i,0)] = dtw[ind(i-1,0)] + linear_distance(s_int(get_time(i)),p_int(get_time(0)));
+  {
+    double dist = linear_distance(s_int(get_time(i)),p_int(get_time(0)));
+    max_dist = max(max_dist, dist);
+    dtw[ind(i,0)] = dtw[ind(i-1,0)] + dist;
+  }
   for(size_t j=1; j<N; ++j)
-    dtw[ind(0,j)] = dtw[ind(0,j-1)] + linear_distance(s_int(get_time(0)),p_int(get_time(j)));
+  {
+    double dist = linear_distance(s_int(get_time(0)),p_int(get_time(j)));
+    max_dist = max(max_dist, dist);
+    dtw[ind(0,j)] = dtw[ind(0,j-1)] + dist;
+  }
   for(size_t i=1; i<N; ++i)
   {
     for(size_t j=1; j<N; ++j)
     {
-      dtw[ind(i,j)] = linear_distance(s_int(get_time(i)),p_int(get_time(j)))
-                                     + min( dtw[ind(i-1,j-1)],
-                                            min( dtw[ind(i,j-1)] , dtw[ind(i-1,j)] ) );
+      double dist = linear_distance(s_int(get_time(i)),p_int(get_time(j)));
+      dtw[ind(i,j)] = dist + min( dtw[ind(i-1,j-1)],
+                                  min( dtw[ind(i,j-1)] , dtw[ind(i-1,j)] ) );
     }
   }
   
   double cost = dtw[ind(N-1,N-1)];
   delete dtw;
-  return cost;
+  return cost/(max_dist*N);
+}
+
+
+void TrajectoryFeatures::computeSquaredAccelerations()
+{
+  const moveit::core::JointModelGroup* jmg = rt_->getWayPoint(0).getJointModelGroup("right_arm");
+  const vector<const moveit::core::JointModel*> joints = jmg->getJointModels();
+  boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
+  size_t N = rt_->getWayPointCount();
+
+  vector<ecl::CubicSpline> joint_splines; 
+
+  for(size_t j=0; j<joints.size();++j)
+  {
+    if(joints[j]->getName()=="r_upper_arm_joint")
+      continue;
+    if(joints[j]->getName()=="r_forearm_joint")
+      continue;
+    ROS_INFO("%s",joints[j]->getName().c_str());
+    // get spline
+    ecl::Array<double> pset(N), tset(N);
+    for(size_t k=0; k<N; ++k)
+    {
+      pset.at(k) = rt_->getWayPoint(k).getJointPositions( joints[j] )[0];
+      tset.at(k) = rt_->getWaypointDurationFromStart(k);
+    }
+    ecl::CubicSpline pspline = ecl::CubicSpline::ContinuousDerivatives(tset, pset, 0, 0);
+    joint_splines.push_back(pspline);
+  }
+  
+  double max_sum_square_accelerations = numeric_limits<double>::min();
+  for(size_t k=0; k<N; ++k)
+  {
+    double sumsquare = 0.0;
+    for(size_t j=0; j<joint_splines.size(); ++j)
+      sumsquare+=pow(joint_splines[j].dderivative(get_time(k)),2);
+    max_sum_square_accelerations = max(max_sum_square_accelerations, sumsquare);
+  }
+  
+  features_.push_back(make_pair("max_acc",max_sum_square_accelerations/85)); //from PR2 limits
+}
+
+double TrajectoryFeatures::computeSquaredAccelerations(const string& name, const ecl::CubicSpline& xc, const ecl::CubicSpline& yc, const ecl::CubicSpline& zc)
+{
+  struct Acc
+  {
+    const ecl::CubicSpline xc, yc, zc;
+    Acc(ecl::CubicSpline x, ecl::CubicSpline y, ecl::CubicSpline z) : xc(x), yc(y), zc(z) {}
+    Point3 operator()(double t){ return Point3(xc.dderivative(t), yc.dderivative(t), zc.dderivative(t)); }
+  } spline_acc(xc, yc, zc);
+
+  boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
+  double max_acc = numeric_limits<double>::min();
+  for(size_t k=0; k<rt_->getWayPointCount(); k++)
+  {
+    Point3 p = spline_acc(get_time(k)); 
+    max_acc = max(p.dot(p), max_acc);
+  }
+  return max_acc;
 }
 
 void TrajectoryFeatures::computeAll()
 {
   features_.clear();
   
+  /*
   ROS_INFO("Compute clearance");
   computeClearance();
+  */
   ROS_INFO("Compute smoothness");
   computeSmoothness();
   ROS_INFO("Compute length");
   computeLength();
+  ROS_INFO("Compute accelerations");
+  computeSquaredAccelerations();
   ROS_INFO("Compute cartesian 1");
   computeCartesianFeatures("r_wrist_roll_link");
   ROS_INFO("Compute cartesian 2");

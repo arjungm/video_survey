@@ -34,7 +34,7 @@ typedef pair<string,double> Feat;
 class TrajectoryFeatures
 {
   private:
-    vector< pair<string,double> > features_;
+    vector<Feat> features_;
     planning_scene::PlanningScenePtr ps_;
     robot_trajectory::RobotTrajectoryPtr rt_;
   protected:
@@ -47,6 +47,9 @@ class TrajectoryFeatures
     double min_dist_line(const Point3& p, const Point3& a, const Point3& b);
     vector<Feat> computeHausdorffLine(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc);
     double computeDTW(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc);
+    double computeSquaredAccelerations(const string& name, const ecl::CubicSpline& xc, const ecl::CubicSpline& yc, const ecl::CubicSpline& zc);
+    void computeSquaredAccelerations();
+    void add(const string& name, double value);
   public:
     typedef vector<Feat>::iterator iterator;
 
