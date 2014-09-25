@@ -148,8 +148,8 @@ target_link_libraries(cfg_debug ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_library(trajectory_features src/features.cpp)
 target_link_libraries(trajectory_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-#add_executable(compute_features src/feature_computation.cpp)
-#target_link_libraries(compute_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_executable(compute_features src/feature_computation.cpp)
+target_link_libraries(compute_features trajectory_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # )
 

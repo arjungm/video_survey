@@ -45,6 +45,7 @@
 #include <boost/regex.hpp>
 
 #include "video_survey/experiment_utils.h"
+#include "video_survey/features.h"
 
 #include <moveit_recorder/trajectory_video_lookup.h>
 #include <moveit_recorder/trajectory_retimer.h>
@@ -84,33 +85,48 @@ int main(int argc, char** argv)
 
     // get traj processor
     TrajectoryRetimer trajproc("robot_description");
+
+    // get Feature engine
+    TrajectoryFeatures tfeats;
       
     // file io
     std::ofstream featfile;
     featfile.open( (save_directory/"features.csv").string().c_str(), std::ios::out );
-    featfile << "traj_id,";
-    for(size_t f=0; f<features.size(); ++f)
-      featfile << features[f]->getName() << ((f==features.size()-1)?"\n":",");
-
+    
     // compute away
     TrajectoryVideoLookup::iterator traj_it = video_lookup_table.begin();
     for(; traj_it!=video_lookup_table.end();++traj_it)
     {
-      featfile << traj_it->first << ",";
-
       trajproc.configure(traj_it->second.ps, traj_it->second.mpr);
       //retime
       moveit_msgs::RobotTrajectory post_processed_rt = traj_it->second.rt;
       bool success = trajproc.retime(post_processed_rt);
       ROS_INFO("Successfully retimed trajectory \"%s\"",traj_it->first.c_str());
+      
       //compute all feats
-      std::vector<double> values( features.size() );
-      for(size_t f=0; f<features.size(); ++f)
+      TrajectoryFeatures tfeats;
+      tfeats.setPlanningScene( trajproc.getPlanningScene() );
+      tfeats.setRobotTrajectory( trajproc.getRobotTrajectory() );
+      tfeats.computeAll();
+      
+      // write feature names
+      TrajectoryFeatures::iterator feat = tfeats.begin();
+      if( traj_it == video_lookup_table.begin() )
       {
-        values[f] = features[f]->compute( trajproc.getPlanningScene(), trajproc.getRobotTrajectory() );
-        featfile << values[f] << ((f==features.size()-1)?"\n":",");
+        featfile << "traj_id";
+        for(; feat!=tfeats.end(); ++feat)
+          featfile << "," << feat->first;
+        featfile << std::endl;
       }
+      // write feature values
+      feat = tfeats.begin();
+      featfile << traj_it->first;
+      for(;feat!=tfeats.end();++feat)
+        featfile << "," << feat->second;
+      featfile << std::endl;
+
       ROS_INFO("Computed features for \'%s\'", traj_it->first.c_str());
+      ROS_INFO("Press enter to continue...");
     }
 
     featfile.close();
