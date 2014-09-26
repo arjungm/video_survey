@@ -29,20 +29,19 @@ void TrajectoryFeatures::computeClearance()
   double arm_clearance = 0.0;
   
   collision_detection::CollisionRequest req;
-  for (std::size_t k = 0 ; k < rt_->getWayPointCount() ; ++k)
+  req.group_name = "right_arm";
+  req.distance = true;
+  for (size_t k = 0 ; k < rt_->getWayPointCount() ; ++k)
   {
-    collision_detection::CollisionResult res;
-    robot_state::RobotStatePtr rs = rt_->getWayPointPtr(k);
-    rs->update();
-    ps_->checkCollisionUnpadded(req, res, *rs);
-    double d = ps_->distanceToCollisionUnpadded( rt_->getWayPoint(k) );
-    cout << d << endl;
-    if (d > 0.0) // in case of collision, distance is negative
-      arm_clearance += d;
+    collision_detection::CollisionResult res; res.clear();
+    ps_->setCurrentState(rt_->getWayPoint(k));
+    ps_->checkCollision(req,res);
+    double distance2col = ps_->distanceToCollision( rt_->getWayPoint(k) );
+    //double d = res.distance;
+    if (distance2col > 0.0) // in case of collision, distance is negative
+      arm_clearance += distance2col;
   }
   arm_clearance = arm_clearance / (double)rt_->getWayPointCount();
-  if(arm_clearance==0.0)
-    cin.get();
   ROS_INFO("Clearance:%.6f",arm_clearance);
   add("clearance", arm_clearance);
 }
@@ -340,7 +339,7 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
   
   double cost = dtw[ind(N-1,N-1)];
   delete dtw;
-  return cost/(max_dist*N);
+  return cost;
 }
 
 
@@ -406,10 +405,8 @@ void TrajectoryFeatures::computeAll()
 {
   features_.clear();
   
-  /*
   ROS_INFO("Compute clearance");
   computeClearance();
-  */
   ROS_INFO("Compute smoothness");
   computeSmoothness();
   ROS_INFO("Compute length");

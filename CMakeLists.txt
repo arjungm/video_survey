@@ -151,6 +151,9 @@ target_link_libraries(trajectory_features ${catkin_LIBRARIES} ${Boost_LIBRARIES}
 add_executable(compute_features src/feature_computation.cpp)
 target_link_libraries(compute_features trajectory_features ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+add_executable(move_cube src/cube_robot_move.cpp)
+target_link_libraries(move_cube ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
 # )
 
 #############
