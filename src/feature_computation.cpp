@@ -61,6 +61,7 @@ int main(int argc, char** argv)
   boost::program_options::options_description desc;
   desc.add_options()
     ("help", "Show help message")
+    ("path_dir",boost::program_options::value<std::string>(), "Directory for planned bfs paths")
     ("save_dir",boost::program_options::value<std::string>(), "Directory for videos");
   boost::program_options::variables_map vm;
   boost::program_options::parsed_options po = boost::program_options::parse_command_line(argc, argv, desc);
@@ -77,6 +78,8 @@ int main(int argc, char** argv)
   {
     std::string save_dir = utils::get_option(vm, "save_dir", "");
     boost::filesystem::path save_directory(save_dir);
+    std::string path_dir = utils::get_option(vm, "path_dir", "");
+    boost::filesystem::path path_directory(path_dir);
     
     // read the bag file to get the file names
     ROS_INFO("Opening bag at %s", save_directory.string().c_str());
@@ -103,10 +106,20 @@ int main(int argc, char** argv)
       bool success = trajproc.retime(post_processed_rt);
       ROS_INFO("Successfully retimed trajectory \"%s\"",traj_it->first.c_str());
       
+      //parse path
+      std::ifstream path_file;
+      path_file.open( (path_directory/(traj_it->first+".path")).string().c_str() );
+      double x, y, z;
+      std::vector<Point3> path;
+      while(path_file >> x >> y >> z)
+        path.push_back( Point3(x,y,z) );
+      ROS_INFO("Path size: %d",(int)path.size());
+      
       //compute all feats
       TrajectoryFeatures tfeats;
       tfeats.setPlanningScene( trajproc.getPlanningScene() );
       tfeats.setRobotTrajectory( trajproc.getRobotTrajectory() );
+      tfeats.setComparisonPath( path );
       tfeats.computeAll();
       
       // write feature names
@@ -129,9 +142,9 @@ int main(int argc, char** argv)
 
     featfile.close();
   }
-  catch(...)
+  catch(exception& e)
   {
-    std::cout << "Failure!" << std::endl;
+    std::cout << e.what() << std::endl;
   }
 
   ROS_INFO("Finished computing features");

@@ -38,6 +38,14 @@ struct Index
   Index(int dx, int dy, int dz) : dimx(dx), dimy(dy), dimxy(dy*dx) {}
   int operator()(const Cell& c) {return (*this)(c.x,c.y,c.z); }
   int operator()(int x, int y, int z) { return x + (y*dimx) + (z*dimxy); }
+  Cell operator()(int i)
+  {
+    int z = i / dimxy;
+    int xy = i % dimxy;
+    int y = xy / dimx;
+    int x = xy % dimx;
+    return Cell(x,y,z);
+  }
 };
 
 struct Grid2World
@@ -86,6 +94,16 @@ struct InCollision
   }
 };
 
+void display_cube( const Point3& p, SetCube& sc, planning_scene::PlanningScenePtr scene, ros::Publisher pub)
+{
+  moveit_msgs::PlanningScene ps_msg;
+  sc(p);
+  scene->getPlanningSceneMsg(ps_msg);
+  ps_pub.publish(ps_msg);
+  ros::spinOnce();
+  usleep(1000);
+}
+
 void do_bfs_3d( const Point3& start, 
     const Point3& goal, 
     const Point3& center,
@@ -111,9 +129,9 @@ void do_bfs_3d( const Point3& start,
   assert(goal.z  > center.z-maxdist); 
 
   //allocate the search space
-  int dimx = int( (center.x+maxdist)/increment ) + 3;
-  int dimy = int( (center.y+maxdist)/increment ) + 3;
-  int dimz = int( (center.z+maxdist)/increment ) + 3;
+  int dimx = 100;//int( (center.x+2*maxdist)/increment ) + 3;
+  int dimy = 100;//int( (center.y+2*maxdist)/increment ) + 3;
+  int dimz = 100;//int( (center.z+2*maxdist)/increment ) + 3;
 
   Index index(dimx,dimy,dimz);
   Grid2World grid_to_world(increment, center, maxdist);
@@ -175,16 +193,31 @@ void do_bfs_3d( const Point3& start,
   Cell start_cell = grid_to_world(start);
   Cell goal_cell = grid_to_world(goal);
 
-  if( grid[ index(start_cell) ] == WALL )
+  if( grid[ index(start_cell) ] == WALL || start_cell.x>=dimx || start_cell.y>=dimy || start_cell.z>=dimz)
+  {
     ROS_WARN("Start Cell = (%d,%d,%d), in collision!", start_cell.x, start_cell.y, start_cell.z);
+    display_cube( grid_to_world(start_cell), set_cube, cube_scene, ps_pub );
+    cin.get();
+  }
   else
+  {
     ROS_INFO("Start Cell = (%d,%d,%d)", start_cell.x, start_cell.y, start_cell.z);
-  if( grid[ index(goal_cell) ] == WALL )
+    display_cube( grid_to_world(start_cell), set_cube, cube_scene, ps_pub );
+  }
+  if( grid[ index(goal_cell) ] == WALL  || goal_cell.x>=dimx || goal_cell.y>=dimy || goal_cell.z>=dimz)
+  {
     ROS_WARN("Goal Cell = (%d,%d,%d), in collision!", goal_cell.x, goal_cell.y, goal_cell.z);
+    display_cube( grid_to_world(goal_cell), set_cube, cube_scene, ps_pub );
+    cin.get();
+  }
   else
+  {
     ROS_INFO("Goal Cell = (%d,%d,%d)", goal_cell.x, goal_cell.y, goal_cell.z);
+    display_cube( grid_to_world(goal_cell), set_cube, cube_scene, ps_pub );
+  }
 
   // BFS
+  ROS_INFO("Searching...");
   queue<Cell> frontier;
   frontier.push(start_cell);
   grid[ index(start_cell) ] = 0;
@@ -194,20 +227,12 @@ void do_bfs_3d( const Point3& start,
   {
     // expand
     Cell expand = frontier.front();
-    moveit_msgs::PlanningScene ps_msg;
-    set_cube( grid_to_world(expand) );
-    cube_scene->getPlanningSceneMsg(ps_msg);
-    ps_pub.publish(ps_msg);
-    sleep(.1);
-    ros::spinOnce();
-
+    //display_cube( grid_to_world(expand), set_cube, cube_scene, ps_pub );
     frontier.pop();
     if( index(expand) == index(goal_cell) )
     {
       ROS_INFO("Finished! Path Found");
       goal_found = true;
-      goal_value = grid[ index(expand) ];
-      ROS_WARN("(%d,%d,%d)=%d",expand.x,expand.y,expand.z,grid[ index(expand) ]);
     }
     else
     {
@@ -217,10 +242,25 @@ void do_bfs_3d( const Point3& start,
         for(int dy=-1; dy<2; ++dy){
           for(int dz=-1; dz<2; ++dz){
             if(!(dx==0 && dy==0 && dz==0)){
+              //valid motion
+              if(expand.x==0 && dx==-1)
+                continue;
+              if(expand.y==0 && dy==-1)
+                continue;
+              if(expand.z==0 && dz==-1)
+                continue;
+              if(expand.x==(dimx-1) && dx==1)
+                continue;
+              if(expand.y==(dimy-1) && dy==1)
+                continue;
+              if(expand.z==(dimz-1) && dz==1)
+                continue;
+              //valid cell
               Cell nbr(expand.x+dx, expand.y+dy, expand.z+dz);
-              if( grid[ index(nbr) ] == UNDISCOVERED ){
+              if( grid[ index(nbr) ] == UNDISCOVERED )
+              {
                 frontier.push(nbr);
-                grid[ index(nbr) ] = index(expand) ; // for reconstruct
+                grid[ index(nbr) ] = index(expand); // for reconstruct
               }
             }
           }
@@ -228,47 +268,37 @@ void do_bfs_3d( const Point3& start,
       }
     } //endif
   }// end search
+  
   if(goal_found)
   {
     Cell current = goal_cell;
-    int current_val = goal_value;
     vector<Cell> cell_path;
     while(grid[ index(current) ]!=0)
     {
-      //find current_val around current
-      bool break_flag = false;
-      for(int dx=-1; dx<2; ++dx){
-        for(int dy=-1; dy<2; ++dy){
-          for(int dz=-1; dz<2; ++dz){
-            if(!(dx==0 && dy==0 && dz==0)){
-              Cell nbr(current.x+dx, current.y+dy, current.z+dz);
-              //if I generated you, your grid value is my index
-              // if nbr generated current, grid[ index(current) ] == index(nbr)
-              if( grid[ index(current) ] == index(nbr) ){
-                cell_path.push_back(current);
-                ROS_INFO("(%d,%d,%d) -> %d to %d",current.x,current.y,current.z,current_val,index(nbr));
-                current = nbr;
-                break_flag = true;
-                break;
-              }
-              if(break_flag) { break;}
-            }
-            if(break_flag) { break;}
-          }
-          if(break_flag) { break;}
-        }
-        if(break_flag) { break;}
-      } // end loop
-    }// end unroll
+      cell_path.push_back(current);
+      // grid[ index(child) ] = index(parent);
+      // -->
+      // parent = inverse_index( grid[ index( current ) ] )
+      // display_cube( grid_to_world(current), set_cube, cube_scene, ps_pub );
+      current = index( grid[ index(current) ] );
+    }
     assert( index(current) == index(start_cell) );
+    cell_path.push_back(current);
+
     reverse(cell_path.begin(), cell_path.end());
-    ROS_INFO("Path length: %d", cell_path.size());
+    ROS_INFO("Path length: %d", (int)cell_path.size());
     for(int c=0; c<cell_path.size(); ++c)
       path.push_back( grid_to_world( cell_path[c] ) );
+
+    //replay
+    //for(int i=0; i<path.size(); ++i)
+    //{
+    //  display_cube( path[i], set_cube, cube_scene, ps_pub );
+    //  usleep(100000); //0.1s
+    //}
   }
-  
-  ROS_INFO("BFS TERMINATED");
-  std::cin.get();
+  ROS_INFO("Search terminated.");
+  delete[] grid;
 }
 
 int main(int argc, char** argv)
@@ -334,15 +364,22 @@ int main(int argc, char** argv)
     Point3 start(sx,sy,sz);
     Point3 goal(gx,gy,gz);
     Point3 cent(tx,ty,tz);
-    double increment = 0.1;
+    double increment = 0.02;
 
     do_bfs_3d(start,goal,cent,max_dist,increment,cube_scene,path);
-    cube_scene->getPlanningSceneMsg( ps_msg );
-    ps_pub.publish(ps_msg);
-    ros::spinOnce();
-    ROS_WARN("Press enter to continue");
-    cin.get();
-  }
 
+    ofstream solution_file;
+    solution_file.open( (path_directory/(traj_id+".path")).string().c_str(), ios::out);
+    for(vector<Point3>::iterator i=path.begin(); i!=path.end(); ++i)
+      solution_file << i->x << " " << i->y << " " << i->z << endl;
+    solution_file.close();
+
+    moveit_msgs::PlanningScene empty_ps_msg;
+    ps_pub.publish(empty_ps_msg);
+    cube_scene->setPlanningSceneMsg( empty_ps_msg );
+    ros::spinOnce();
+  }
+  
+  ROS_INFO("Completed compute the path solutions.");
   return 0;
 }

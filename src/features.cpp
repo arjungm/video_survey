@@ -236,6 +236,11 @@ double TrajectoryFeatures::min_dist_line(const Point3& p, const Point3& a, const
 vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc)
 {
   // get interpolated straight line trajectory in work-space
+  bool use_comparison_spline = false;
+  if(comparison_spline_)
+    use_comparison_spline = true;
+  ROS_INFO("Using spline? %s", use_comparison_spline ? "yes" : "no" );
+
   boost::function<double (double)> x_int = boost::bind(&TrajectoryFeatures::line_interp, this, xc( xc.domain().back() ), xc(0.0), xc.domain().back(), 0.0, _1);
   boost::function<double (double)> y_int = boost::bind(&TrajectoryFeatures::line_interp, this, yc( yc.domain().back() ), yc(0.0), yc.domain().back(), 0.0, _1);
   boost::function<double (double)> z_int = boost::bind(&TrajectoryFeatures::line_interp, this, zc( zc.domain().back() ), zc(0.0), zc.domain().back(), 0.0, _1);
@@ -258,17 +263,36 @@ vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const str
       double t2 = rt_->getWaypointDurationFromStart(k2);
       double t0 = rt_->getWaypointDurationFromStart(k2);
       double te = rt_->getWaypointDurationFromStart(k2+1);
-
-      double dAB = linear_distance(xc(t1),yc(t1),zc(t1), x_int(t2), y_int(t2), z_int(t2));
-      double dBA = linear_distance(x_int(t1),y_int(t1),z_int(t1), xc(t2), yc(t2), zc(t2));
+     
+      double dAB, dBA; 
+      if(use_comparison_spline)
+      {
+        dAB = linear_distance(Point3(xc(t1),yc(t1),zc(t1)), comparison_spline_(t2));
+        dBA = linear_distance(comparison_spline_(t1), Point3(xc(t2), yc(t2), zc(t2)));
+      }
+      else
+      {
+        dAB = linear_distance(xc(t1),yc(t1),zc(t1), x_int(t2), y_int(t2), z_int(t2));
+        dBA = linear_distance(x_int(t1),y_int(t1),z_int(t1), xc(t2), yc(t2), zc(t2));
+      }
       min_dAB = min(min_dAB,dAB);
       min_dBA = min(min_dBA,dBA);
 
       if(k2+1 < rt_->getWayPointCount())
       {
-        double dAB_seg = min_dist_line( Point3(xc(t1),yc(t1),zc(t1)), 
+        double dAB_seg;
+        if(use_comparison_spline)
+        {
+          dAB_seg = min_dist_line( Point3(xc(t1),yc(t1),zc(t1)),
+                                    comparison_spline_(t0),
+                                    comparison_spline_(te));
+        }
+        else
+        {
+          dAB_seg = min_dist_line( Point3(xc(t1),yc(t1),zc(t1)), 
                                   Point3(x_int(t0), y_int(t0), z_int(t0)),
                                   Point3(x_int(te), y_int(te), z_int(te)));
+        }
         min_dAB_seg = min(min_dAB_seg, dAB_seg);
       }
     }
@@ -288,6 +312,25 @@ vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const str
   return hausdorff_feats;
 }
 
+void TrajectoryFeatures::setComparisonPath(const vector<Point3>& path)
+{
+  int N = path.size();
+  ecl::Array<double> x_set(N), y_set(N), z_set(N), t_set(N);
+  for(size_t k=0; k<N; ++k)
+  {
+    x_set.at(k) = path[k].x;
+    y_set.at(k) = path[k].y;
+    z_set.at(k) = path[k].z;
+    t_set.at(k) = rt_->getWaypointDurationFromStart(rt_->getWayPointCount()-1)*double(k)/double(N-2);
+  }
+  ecl::CubicSpline xc, yc, zc;
+  xc = ecl::CubicSpline::ContinuousDerivatives(t_set, x_set, 0, 0);
+  yc = ecl::CubicSpline::ContinuousDerivatives(t_set, y_set, 0, 0);
+  zc = ecl::CubicSpline::ContinuousDerivatives(t_set, z_set, 0, 0);
+
+  comparison_spline_ = boost::bind(&TrajectoryFeatures::spline_interp,this,xc,yc,zc,_1);
+}
+
 Point3 TrajectoryFeatures::spline_interp(const ecl::CubicSpline& xc, const ecl::CubicSpline& yc, const ecl::CubicSpline& zc, double t)
 {
   return Point3(xc(t), yc(t), zc(t));
@@ -298,7 +341,12 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
   double t_end = xc.domain().back();
   Point3 start(xc(0.0), yc(0.0), zc(0.0));
   Point3 end(xc(t_end), yc(t_end), zc(t_end));
-  boost::function<Point3 (double)> p_int = boost::bind(&TrajectoryFeatures::line_interp2, this, start, end, 0.0, t_end, _1); 
+  
+  boost::function<Point3 (double)> p_int;
+  if( comparison_spline_ )
+    p_int = comparison_spline_;
+  else
+    p_int = boost::bind(&TrajectoryFeatures::line_interp2, this, start, end, 0.0, t_end, _1); 
   boost::function<Point3 (double)> s_int = boost::bind(&TrajectoryFeatures::spline_interp, this, xc, yc, zc, _1);
   boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
 
@@ -339,7 +387,7 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
   
   double cost = dtw[ind(N-1,N-1)];
   delete dtw;
-  return cost;
+  return cost/(max_dist*N);
 }
 
 
@@ -405,8 +453,6 @@ void TrajectoryFeatures::computeAll()
 {
   features_.clear();
   
-  ROS_INFO("Compute clearance");
-  computeClearance();
   ROS_INFO("Compute smoothness");
   computeSmoothness();
   ROS_INFO("Compute length");

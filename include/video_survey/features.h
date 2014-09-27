@@ -37,6 +37,7 @@ class TrajectoryFeatures
     vector<Feat> features_;
     planning_scene::PlanningScenePtr ps_;
     robot_trajectory::RobotTrajectoryPtr rt_;
+    boost::function<Point3 (double)> comparison_spline_;
   protected:
     double linear_distance(const Eigen::Affine3d& lhs, const Eigen::Affine3d& rhs);
     double linear_distance(double, double, double, double, double, double);
@@ -58,6 +59,7 @@ class TrajectoryFeatures
     void setPlanningScene(planning_scene::PlanningScenePtr ps);
     void setRobotTrajectory(robot_trajectory::RobotTrajectoryPtr rt);
 
+    void setComparisonPath( const vector<Point3>& path );
     void computeAll();
 
     void computeClearance();
