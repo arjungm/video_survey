@@ -23,6 +23,7 @@ struct Point3
   double x,y,z;
   Point3(double _x, double _y, double _z) : x(_x), y(_y), z(_z){}
   double dot(const Point3& p) const { return x*p.x + y*p.y + z*p.z; }
+  string to_string() { return "("+boost::lexical_cast<string>(x)+","+boost::lexical_cast<string>(y)+","+boost::lexical_cast<string>(z)+")"; }
 };
 
 Point3 operator+(const Point3& a, const Point3& b){ return Point3(a.x+b.x, a.y+b.y, a.z+b.z); }

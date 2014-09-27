@@ -51,6 +51,8 @@
 #include <moveit_recorder/trajectory_retimer.h>
 #include <moveit_recorder/utils.h>
 
+#include <moveit/robot_state/conversions.h>
+
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "split_screen_creator");
@@ -105,6 +107,22 @@ int main(int argc, char** argv)
       moveit_msgs::RobotTrajectory post_processed_rt = traj_it->second.rt;
       bool success = trajproc.retime(post_processed_rt);
       ROS_INFO("Successfully retimed trajectory \"%s\"",traj_it->first.c_str());
+
+      // ===========
+      // Hacks to fix the stupid base position
+      robot_trajectory::RobotTrajectoryPtr rt = trajproc.getRobotTrajectory();
+      robot_state::RobotStatePtr start = rt->getFirstWayPointPtr();
+      moveit::core::robotStateMsgToRobotState( traj_it->second.mpr.start_state, *start);
+      start->update();
+      std::vector<std::string> variables = start->getRobotModel()->getRootJoint()->getVariableNames();
+      for(int t=1; t<rt->getWayPointCount(); ++t)
+      {
+        robot_state::RobotStatePtr waypoint = rt->getWayPointPtr(t);
+        for(int v=0; v<variables.size(); ++v)
+          waypoint->setVariablePosition(variables[v], start->getVariablePosition(variables[v]));
+        waypoint->update();
+      }
+      // ===========
       
       //parse path
       std::ifstream path_file;
@@ -118,7 +136,7 @@ int main(int argc, char** argv)
       //compute all feats
       TrajectoryFeatures tfeats;
       tfeats.setPlanningScene( trajproc.getPlanningScene() );
-      tfeats.setRobotTrajectory( trajproc.getRobotTrajectory() );
+      tfeats.setRobotTrajectory( rt );
       tfeats.setComparisonPath( path );
       tfeats.computeAll();
       

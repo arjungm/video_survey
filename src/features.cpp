@@ -120,6 +120,7 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
   ecl::Array<double> x_set(N), y_set(N), z_set(N), t_set(N);
   for(size_t k=0; k<rt_->getWayPointCount(); ++k)
   {
+    rt_->getWayPointPtr(k)->update();
     x_set.at(k) = rt_->getWayPoint(k).getGlobalLinkTransform(link_name).translation().x();
     y_set.at(k) = rt_->getWayPoint(k).getGlobalLinkTransform(link_name).translation().y();
     z_set.at(k) = rt_->getWayPoint(k).getGlobalLinkTransform(link_name).translation().z();
@@ -129,6 +130,8 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
   xc = ecl::CubicSpline::ContinuousDerivatives(t_set, x_set, 0, 0);
   yc = ecl::CubicSpline::ContinuousDerivatives(t_set, y_set, 0, 0);
   zc = ecl::CubicSpline::ContinuousDerivatives(t_set, z_set, 0, 0);
+  
+  boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
 
   ROS_INFO("\t Compute curvature");
   // compute r'(t), r"(t)
@@ -148,8 +151,10 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
 
   ROS_INFO("\t Compute Hausdorff features");
   vector< pair<string,double> > hausdorff_feats = computeHausdorffLine(link_name, xc, yc, zc);
+
   ROS_INFO("\t Compute DTW");
   double dtw_cost = computeDTW(link_name, xc, yc, zc);
+  
   ROS_INFO("\t Compute acclerations");
   double lin_acc = computeSquaredAccelerations(link_name, xc, yc, zc);
 
@@ -239,7 +244,6 @@ vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const str
   bool use_comparison_spline = false;
   if(comparison_spline_)
     use_comparison_spline = true;
-  ROS_INFO("Using spline? %s", use_comparison_spline ? "yes" : "no" );
 
   boost::function<double (double)> x_int = boost::bind(&TrajectoryFeatures::line_interp, this, xc( xc.domain().back() ), xc(0.0), xc.domain().back(), 0.0, _1);
   boost::function<double (double)> y_int = boost::bind(&TrajectoryFeatures::line_interp, this, yc( yc.domain().back() ), yc(0.0), yc.domain().back(), 0.0, _1);
@@ -301,10 +305,10 @@ vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const str
 
     imhAB+=min_dAB_seg;
   }
-  imhAB /= rt_->getWayPointCount();
+  imhAB = imhAB/double(rt_->getWayPointCount());
   double H = max(hAB, hBA);
 
-  vector< pair<string, double> > hausdorff_feats(4);
+  vector< pair<string, double> > hausdorff_feats(4,make_pair<string,double>("",0.0));
   hausdorff_feats[0] = make_pair(link_name+"_h_traj_line", hAB);
   hausdorff_feats[1] = make_pair(link_name+"_h_line_traj", hBA);
   hausdorff_feats[2] = make_pair(link_name+"_H_traj_line", H);
@@ -350,18 +354,20 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
   boost::function<Point3 (double)> s_int = boost::bind(&TrajectoryFeatures::spline_interp, this, xc, yc, zc, _1);
   boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
 
-  double* dtw = new double[rt_->getWayPointCount()*rt_->getWayPointCount()];
+  size_t N = rt_->getWayPointCount();
+  double* dtw = new double[N*N];
+  for(int i=0;i<(N*N);++i)
+    dtw[i]=0.0;
+
   struct Ind
   {
     size_t stride_;
     Ind(size_t stride) : stride_(stride) {}
     size_t operator()(size_t i, size_t j){ return i+j*stride_; }
   }ind(rt_->getWayPointCount());
-  
   dtw[ind(0,0)] = 0;
   // i -> spline
   // j -> line
-  size_t N = rt_->getWayPointCount();
   double max_dist = numeric_limits<double>::min();
   for(size_t i=1; i<N; ++i)
   {
@@ -385,9 +391,9 @@ double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline&
     }
   }
   
-  double cost = dtw[ind(N-1,N-1)];
+  double cost = dtw[ind(N-1,N-1)];// (max_dist*N);
   delete dtw;
-  return cost/(max_dist*N);
+  return cost;
 }
 
 
@@ -453,6 +459,8 @@ void TrajectoryFeatures::computeAll()
 {
   features_.clear();
   
+  ROS_INFO("Compute clearance");
+  computeClearance();
   ROS_INFO("Compute smoothness");
   computeSmoothness();
   ROS_INFO("Compute length");
