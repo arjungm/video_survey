@@ -110,18 +110,8 @@ int main(int argc, char** argv)
 
       // ===========
       // Hacks to fix the stupid base position
+      trajproc.correctRootJointPositions();
       robot_trajectory::RobotTrajectoryPtr rt = trajproc.getRobotTrajectory();
-      robot_state::RobotStatePtr start = rt->getFirstWayPointPtr();
-      moveit::core::robotStateMsgToRobotState( traj_it->second.mpr.start_state, *start);
-      start->update();
-      std::vector<std::string> variables = start->getRobotModel()->getRootJoint()->getVariableNames();
-      for(int t=1; t<rt->getWayPointCount(); ++t)
-      {
-        robot_state::RobotStatePtr waypoint = rt->getWayPointPtr(t);
-        for(int v=0; v<variables.size(); ++v)
-          waypoint->setVariablePosition(variables[v], start->getVariablePosition(variables[v]));
-        waypoint->update();
-      }
       // ===========
       
       //parse path
