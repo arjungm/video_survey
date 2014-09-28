@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   ecl_geometry
   moveit_msgs
   std_msgs
+  visualization_msgs
   rosbag
   moveit_recorder
   roscpp
@@ -156,6 +157,9 @@ target_link_libraries(get_start_goal_positions ${catkin_LIBRARIES} ${Boost_LIBRA
 
 add_executable(move_cube src/cube_robot_move.cpp)
 target_link_libraries(move_cube ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(visualize src/visualizer.cpp)
+target_link_libraries(visualize ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # )
 
