@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 
     // visualization directory
     std::string vis_dir = utils::get_option(vm, "vis_dir", "");
-    boost::filesystem::path vis_directory(path_dir);
+    boost::filesystem::path vis_directory(vis_dir);
 
     boost::shared_ptr<TrajectoryRetimer> retimer;
     // iterate over the table and upload the named videos
@@ -163,7 +163,10 @@ int main(int argc, char** argv)
       // trajectory-snapshots (4-5 images of the trajectory state)
       // elbow spline path + start_state
       // end effector spline path + start_state
-
+      
+      bool skip = false;
+      if(skip)
+      {
       int n = 5;
       for(int i=0; i<n; i++)
       {
@@ -191,12 +194,14 @@ int main(int argc, char** argv)
           else
           {
             ROS_ERROR("Image not saved. Halting the node.");
+            ros::shutdown();
             exit(0);
           }
         }
         else
           ROS_WARN("Image already saved. Skipping.");
       }// done with snapshots
+      }//skip check
 
 
       //load the path into a visualization marker message
@@ -206,6 +211,13 @@ int main(int argc, char** argv)
       elbow_lines.ns = elbow_points.ns = hand_lines.ns = hand_points.ns = bfs.ns = "paths";
       elbow_lines.action = elbow_points.action = hand_lines.action = hand_points.action = bfs.action = visualization_msgs::Marker::ADD;
       elbow_lines.pose.orientation.w = elbow_points.pose.orientation.w = hand_lines.pose.orientation.w = hand_points.pose.orientation.w = bfs.pose.orientation.w = 1.0;
+      elbow_lines.scale.x = hand_lines.scale.x = bfs.scale.x = 0.01;
+      elbow_lines.color.a = hand_lines.color.a = bfs.color.a = 1.0;
+      elbow_lines.type = hand_lines.type = bfs.type = visualization_msgs::Marker::LINE_STRIP;
+      elbow_points.type = hand_points.type = visualization_msgs::Marker::POINTS;
+      elbow_points.color.a = hand_points.color.a = 1.0;
+      elbow_points.scale.x = hand_points.scale.x = 0.02;
+      elbow_points.scale.y = hand_points.scale.y = 0.02;
       int unique_id = 0;
       double x,y,z;
       std::ifstream bfs_path_file;
@@ -214,22 +226,15 @@ int main(int argc, char** argv)
       // ELBOW
       // ===============
       elbow_lines.id = unique_id++;
-      elbow_lines.type = visualization_msgs::Marker::LINE_STRIP;
-      elbow_lines.scale.x = 0.1;
       elbow_lines.color.r = 1.0;
-      elbow_lines.color.a = 1.0;
       elbow_points.id = unique_id++;
-      elbow_points.type = visualization_msgs::Marker::POINTS;
-      elbow_points.scale.x = 0.2;
-      elbow_points.scale.y = 0.2;
       elbow_points.color.b = 1.0;
-      elbow_points.color.a = 1.0;
       for(int i=0; i<rt->getWayPointCount(); ++i)
       {
         geometry_msgs::Point p;
-        p.x = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_link").translation().x();
-        p.y = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_link").translation().y();
-        p.z = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_link").translation().z();
+        p.x = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_flex_link").translation().x();
+        p.y = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_flex_link").translation().y();
+        p.z = rt->getWayPointPtr(i)->getGlobalLinkTransform("r_elbow_flex_link").translation().z();
         elbow_lines.points.push_back(p);
         elbow_points.points.push_back(p);
       }
@@ -237,16 +242,9 @@ int main(int argc, char** argv)
       // END EFFECTOR
       // ===============
       hand_lines.id = unique_id++;
-      hand_lines.type = visualization_msgs::Marker::LINE_STRIP;
-      hand_lines.scale.x = 0.1;
       hand_lines.color.r = 1.0;
-      hand_lines.color.a = 1.0;
       hand_points.id = unique_id++;
-      hand_points.type = visualization_msgs::Marker::POINTS;
-      hand_points.scale.x = 0.2;
-      hand_points.scale.y = 0.2;
       hand_points.color.b = 1.0;
-      hand_points.color.a = 1.0;
       for(int i=0; i<rt->getWayPointCount(); ++i)
       {
         geometry_msgs::Point p;
@@ -260,10 +258,7 @@ int main(int argc, char** argv)
       // BFS
       // ===============
       bfs.id = unique_id++;
-      bfs.type = visualization_msgs::Marker::LINE_STRIP;
-      bfs.scale.x = 0.1;
       bfs.color.r = 1.0;
-      bfs.color.a = 1.0;
       while( bfs_path_file >> x >> y >> z )
       {
         geometry_msgs::Point p;
@@ -293,6 +288,7 @@ int main(int argc, char** argv)
         else
         {
           ROS_ERROR("Image not saved. Halting the node.");
+          ros::shutdown();
           exit(0);
         }
       }
@@ -302,8 +298,11 @@ int main(int argc, char** argv)
       if(state_pub.getNumSubscribers()<1)
       {
         ROS_ERROR("A node might have crashed because no one is listening to the state publisher. Exiting.");
+        ros::shutdown();
         exit(0);
       }
+      ROS_WARN("Pausing...");
+      std::cin.get();
     }
     // video_lookup_table.saveToBag( save_directory.string() );
   }
