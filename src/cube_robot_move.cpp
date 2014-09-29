@@ -216,6 +216,20 @@ void do_bfs_3d( const Point3& start,
     display_cube( grid_to_world(goal_cell), set_cube, cube_scene, ps_pub );
   }
 
+  const int U=1, Z=0, D=-1;
+  const int num_motions = 26;
+  //                     one cell step  two cell steps---------->  three cell step
+  int dx[num_motions] = {U,D, Z,Z, Z,Z, U,U,D,D, Z,Z,Z,Z, U,D,U,D, U,U,U,U,D,D,D,D};
+  int dy[num_motions] = {Z,Z, U,D, Z,Z, U,D,U,D, U,U,D,D, Z,Z,Z,Z, U,U,D,D,U,U,D,D};
+  int dz[num_motions] = {Z,Z, Z,Z, U,D, Z,Z,Z,Z, U,D,U,D, U,U,D,D, U,D,U,D,U,D,U,D};
+  
+  /*
+  const int num_motions = 26;
+  int dx[num_motions] = {U,U,U, U,U,U, U,U,U, D,D,D, D,D,D, D,D,D, Z,Z,Z, Z,Z,Z, Z,Z};
+  int dy[num_motions] = {U,U,U, D,D,D, Z,Z,Z, U,U,U, D,D,D, Z,Z,Z, U,U,U, D,D,D, Z,Z};
+  int dz[num_motions] = {U,D,Z, U,D,Z, U,D,Z, U,D,Z, U,D,Z, U,D,Z, U,D,Z, U,D,Z, U,D};
+  */
+
   // BFS
   ROS_INFO("Searching...");
   queue<Cell> frontier;
@@ -238,6 +252,16 @@ void do_bfs_3d( const Point3& start,
     {
       // successors (26 succs)
       vector<Cell> succs;
+      for(int m=0; m<num_motions;++m)
+      {
+        Cell nbr(expand.x+dx[m], expand.y+dy[m], expand.z+dz[m]);
+        if( grid[ index(nbr) ] == UNDISCOVERED )
+        {
+          frontier.push(nbr);
+          grid[ index(nbr) ] = index(expand); // for reconstruct
+        }
+      }
+      /*
       for(int dx=-1; dx<2; ++dx){
         for(int dy=-1; dy<2; ++dy){
           for(int dz=-1; dz<2; ++dz){
@@ -265,7 +289,8 @@ void do_bfs_3d( const Point3& start,
             }
           }
         }
-      }
+      } // loop over motions
+      */
     } //endif
   }// end search
   
