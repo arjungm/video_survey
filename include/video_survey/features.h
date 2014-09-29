@@ -31,6 +31,7 @@ Point3 operator-(const Point3& a, const Point3& b){ return Point3(a.x-b.x, a.y-b
 Point3 operator*(double s, const Point3& p){ return Point3(s*p.x, s*p.y, s*p.z); }
     
 typedef pair<string,double> Feat;
+typedef boost::function<Point3 (double)> PointInterp;
 
 class TrajectoryFeatures
 {
@@ -39,6 +40,7 @@ class TrajectoryFeatures
     planning_scene::PlanningScenePtr ps_;
     robot_trajectory::RobotTrajectoryPtr rt_;
     boost::function<Point3 (double)> comparison_spline_;
+    boost::function<Point3 (double)> bfs_path_;
   protected:
     double linear_distance(const Eigen::Affine3d& lhs, const Eigen::Affine3d& rhs);
     double linear_distance(double, double, double, double, double, double);
@@ -51,7 +53,16 @@ class TrajectoryFeatures
     double computeDTW(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc);
     double computeSquaredAccelerations(const string& name, const ecl::CubicSpline& xc, const ecl::CubicSpline& yc, const ecl::CubicSpline& zc);
     void computeSquaredAccelerations();
+    double computeQuaternionDistance(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc);
     void add(const string& name, double value);
+    void add(const vector<Feat>& feats);
+
+    vector<double> getTimes();
+    vector<Point3> getLinkPositions(const string& link);
+    boost::function<Point3 (double)> getLineInterpolation(const vector<Point3>& trajectory, const vector<double>& times);
+    boost::function<Point3 (double)> getSplineInterpolation(const vector<Point3>& trajectory, const vector<double>& times);
+    vector<Feat> computeHausdorffFeatures(const PointInterp& from, const PointInterp& to, const string& from_name, const string& to_name);
+    double computeDTW(const PointInterp& from_traj, const PointInterp& to_traj);
   public:
     typedef vector<Feat>::iterator iterator;
 
@@ -60,13 +71,14 @@ class TrajectoryFeatures
     void setPlanningScene(planning_scene::PlanningScenePtr ps);
     void setRobotTrajectory(robot_trajectory::RobotTrajectoryPtr rt);
 
+    PointInterp processBFSpath(const vector<Point3>& path);
     void setComparisonPath( const vector<Point3>& path );
     void computeAll();
 
     void computeClearance();
     void computeSmoothness();
     void computeLength();
-    void computeCartesianFeatures(const string& link_name);
+    void computeCartesianFeatures(const string& link_name, const string& link_short_name);
     void computeJointLimitDistance(); 
 
     iterator begin() { return features_.begin(); }

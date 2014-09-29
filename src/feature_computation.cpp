@@ -127,7 +127,7 @@ int main(int argc, char** argv)
       TrajectoryFeatures tfeats;
       tfeats.setPlanningScene( trajproc.getPlanningScene() );
       tfeats.setRobotTrajectory( rt );
-      tfeats.setComparisonPath( path );
+      tfeats.processBFSpath( path );
       tfeats.computeAll();
       
       // write feature names

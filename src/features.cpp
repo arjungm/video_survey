@@ -83,7 +83,7 @@ double TrajectoryFeatures::linear_distance(const Eigen::Affine3d& lhs, const Eig
   return (lhs.translation() - rhs.translation()).norm();
 }
 
-void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
+void TrajectoryFeatures::computeCartesianFeatures(const string& link_name, const string& link_short_name)
 {
   double length=0.0, smoothness=0.0;
   
@@ -149,22 +149,17 @@ void TrajectoryFeatures::computeCartesianFeatures(const string& link_name)
     max_curvature = (curv > max_curvature) ? curv : max_curvature;
   }
 
-  ROS_INFO("\t Compute Hausdorff features");
-  vector< pair<string,double> > hausdorff_feats = computeHausdorffLine(link_name, xc, yc, zc);
-
-  ROS_INFO("\t Compute DTW");
-  double dtw_cost = computeDTW(link_name, xc, yc, zc);
-  
   ROS_INFO("\t Compute acclerations");
   double lin_acc = computeSquaredAccelerations(link_name, xc, yc, zc);
+  
+  ROS_INFO("\t Compute angular distance");
+  double quaternion_dist = computeQuaternionDistance(link_name, xc, yc, zc);
 
-  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "length" ), length));
-  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "smoothness") , smoothness)); 
-  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "max_curvature" ), max_curvature));
-  for(vector<Feat>::iterator i=hausdorff_feats.begin(); i!=hausdorff_feats.end(); ++i)
-    features_.push_back(*i);
-  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "DTW"), dtw_cost));
-  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_name % "lin_acc"), lin_acc));
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_short_name % "length" ), length));
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_short_name % "smoothness") , smoothness)); 
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_short_name % "max_curvature" ), max_curvature));
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_short_name % "lin_acc"), lin_acc));
+  features_.push_back(make_pair(boost::str(boost::format("%s_%s") % link_short_name % "quat_dist"), quaternion_dist));
 }
 
 void TrajectoryFeatures::computeJointLimitDistance()
@@ -236,6 +231,102 @@ double TrajectoryFeatures::min_dist_line(const Point3& p, const Point3& a, const
   if( t<0.0 ) { return linear_distance(p,a); }
   if( t>1.0 ) { return linear_distance(p,b); }
   return linear_distance(p,a+t*(b-a));
+}
+
+double TrajectoryFeatures::computeQuaternionDistance(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc)
+{
+  size_t N = rt_->getWayPointCount();
+  double sum=0.0;
+  for(size_t k=0; k<N-1; k++)
+  {
+    Eigen::Quaterniond quat_prev( rt_->getWayPointPtr(k)->getGlobalLinkTransform(link_name).rotation() );
+    Eigen::Quaterniond quat_next( rt_->getWayPointPtr(k+1)->getGlobalLinkTransform(link_name).rotation() );
+
+    double dot_quat = quat_prev.x()*quat_next.x()+
+                      quat_prev.y()*quat_next.y()+
+                      quat_prev.z()*quat_next.z()+
+                      quat_prev.w()*quat_next.w();
+    double quat_dist = acos( 2*pow(dot_quat,2) -1 );
+    sum+=quat_dist;
+  }
+  return sum;
+}
+
+boost::function<Point3 (double)> TrajectoryFeatures::getLineInterpolation(const vector<Point3>& trajectory, const vector<double>& times)
+{
+  int N = trajectory.size();
+  Point3 start(trajectory[0].x, trajectory[0].y, trajectory[0].z);
+  Point3 end(trajectory[N-1].x, trajectory[N-1].y, trajectory[N-1].z);
+  return boost::bind(&TrajectoryFeatures::line_interp2,this,start,end,times[0],times[N-1],_1);
+}
+
+boost::function<Point3 (double)> TrajectoryFeatures::getSplineInterpolation(const vector<Point3>& trajectory, const vector<double>& times)
+{
+  int N = trajectory.size();
+  ecl::Array<double> x_set(N), y_set(N), z_set(N), t_set(N);
+  for(size_t k=0; k<N; ++k)
+  {
+    x_set.at(k) = trajectory[k].x;
+    y_set.at(k) = trajectory[k].y;
+    z_set.at(k) = trajectory[k].z;
+    t_set.at(k) = times[k];
+  }
+  ecl::CubicSpline xc, yc, zc;
+  xc = ecl::CubicSpline::ContinuousDerivatives(t_set, x_set, 0, 0);
+  yc = ecl::CubicSpline::ContinuousDerivatives(t_set, y_set, 0, 0);
+  zc = ecl::CubicSpline::ContinuousDerivatives(t_set, z_set, 0, 0);
+
+  return boost::bind(&TrajectoryFeatures::spline_interp,this,xc,yc,zc,_1);
+}
+
+vector<Feat> TrajectoryFeatures::computeHausdorffFeatures(const PointInterp& from_traj, const PointInterp& to_traj, const string& from_name, const string& to_name)
+{
+  // for each timestamp
+  // traj -> interp (A -> B)
+  double hAB = numeric_limits<double>::min();
+  double hBA = numeric_limits<double>::min();
+  double imhAB;
+
+  for(int k1=0; k1<rt_->getWayPointCount(); ++k1)
+  {
+    double t1 = rt_->getWaypointDurationFromStart(k1);
+    // find min over interp
+    double min_dAB = numeric_limits<double>::max();
+    double min_dBA = numeric_limits<double>::max();
+    double min_dAB_seg = numeric_limits<double>::max();
+    for(int k2=0; k2< rt_->getWayPointCount(); ++k2)
+    {
+      double t2 = rt_->getWaypointDurationFromStart(k2);
+      double t0 = rt_->getWaypointDurationFromStart(k2);
+      double te = rt_->getWaypointDurationFromStart(k2+1);
+     
+      double dAB, dBA; 
+      dAB = linear_distance(from_traj(t1), to_traj(t2));
+      dBA = linear_distance(to_traj(t1), from_traj(t2));
+      min_dAB = min(min_dAB,dAB);
+      min_dBA = min(min_dBA,dBA);
+
+      if(k2+1 < rt_->getWayPointCount())
+      {
+        double dAB_seg;
+        dAB_seg = min_dist_line( from_traj(t1), to_traj(t0), to_traj(te));
+        min_dAB_seg = min(min_dAB_seg, dAB_seg);
+      }
+    }
+    hAB = max(min_dAB, hAB);
+    hBA = max(min_dBA, hBA);
+
+    imhAB+=min_dAB_seg;
+  }
+  imhAB = imhAB/double(rt_->getWayPointCount());
+  double H = max(hAB, hBA);
+
+  vector< pair<string, double> > hausdorff_feats(4,make_pair<string,double>("",0.0));
+  hausdorff_feats[0] = make_pair(boost::str(boost::format("h_%s_%s") % from_name % to_name ), hAB);
+  hausdorff_feats[1] = make_pair(boost::str(boost::format("h_%s_%s") % to_name % from_name ), hBA);
+  hausdorff_feats[2] = make_pair(boost::str(boost::format("H_%s_%s") % from_name % to_name ), H);
+  hausdorff_feats[3] = make_pair(boost::str(boost::format("imh_%s_%s") % from_name % to_name ), imhAB);
+  return hausdorff_feats;
 }
 
 vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc)
@@ -316,6 +407,17 @@ vector< pair<string,double> > TrajectoryFeatures::computeHausdorffLine(const str
   return hausdorff_feats;
 }
 
+PointInterp TrajectoryFeatures::processBFSpath(const vector<Point3>& path)
+{
+  vector<double> times;
+  double max_time = rt_->getWaypointDurationFromStart(rt_->getWayPointCount()-1);
+
+  for(size_t k=0;k<path.size();k++)
+    times.push_back( max_time * double(k) / double(path.size()-2) );
+
+  bfs_path_ = getSplineInterpolation(path,times);
+}
+
 void TrajectoryFeatures::setComparisonPath(const vector<Point3>& path)
 {
   int N = path.size();
@@ -338,6 +440,50 @@ void TrajectoryFeatures::setComparisonPath(const vector<Point3>& path)
 Point3 TrajectoryFeatures::spline_interp(const ecl::CubicSpline& xc, const ecl::CubicSpline& yc, const ecl::CubicSpline& zc, double t)
 {
   return Point3(xc(t), yc(t), zc(t));
+}
+
+double TrajectoryFeatures::computeDTW(const PointInterp& from_traj, const PointInterp& to_traj)
+{
+  boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
+  size_t N = rt_->getWayPointCount();
+  double* dtw = new double[N*N];
+  for(int i=0;i<(N*N);++i)
+    dtw[i]=0.0;
+
+  struct Ind
+  {
+    size_t stride_;
+    Ind(size_t stride) : stride_(stride) {}
+    size_t operator()(size_t i, size_t j){ return i+j*stride_; }
+  }ind(rt_->getWayPointCount());
+  dtw[ind(0,0)] = 0;
+  // i -> spline
+  // j -> line
+  double max_dist = numeric_limits<double>::min();
+  for(size_t i=1; i<N; ++i)
+  {
+    double dist = linear_distance(to_traj(get_time(i)),from_traj(get_time(0)));
+    max_dist = max(max_dist, dist);
+    dtw[ind(i,0)] = dtw[ind(i-1,0)] + dist;
+  }
+  for(size_t j=1; j<N; ++j)
+  {
+    double dist = linear_distance(to_traj(get_time(0)),from_traj(get_time(j)));
+    max_dist = max(max_dist, dist);
+    dtw[ind(0,j)] = dtw[ind(0,j-1)] + dist;
+  }
+  for(size_t i=1; i<N; ++i)
+  {
+    for(size_t j=1; j<N; ++j)
+    {
+      double dist = linear_distance(to_traj(get_time(i)), from_traj(get_time(j)));
+      dtw[ind(i,j)] = dist + min( dtw[ind(i-1,j-1)], min( dtw[ind(i,j-1)] , dtw[ind(i-1,j)] ) );
+    }
+  }
+  
+  double cost = dtw[ind(N-1,N-1)];// (max_dist*N);
+  delete dtw;
+  return cost;
 }
 
 double TrajectoryFeatures::computeDTW(const string& link_name, ecl::CubicSpline& xc, ecl::CubicSpline& yc, ecl::CubicSpline& zc)
@@ -412,7 +558,6 @@ void TrajectoryFeatures::computeSquaredAccelerations()
       continue;
     if(joints[j]->getName()=="r_forearm_joint")
       continue;
-    ROS_INFO("%s",joints[j]->getName().c_str());
     // get spline
     ecl::Array<double> pset(N), tset(N);
     for(size_t k=0; k<N; ++k)
@@ -455,6 +600,27 @@ double TrajectoryFeatures::computeSquaredAccelerations(const string& name, const
   return max_acc;
 }
 
+vector<Point3> TrajectoryFeatures::getLinkPositions(const string& link)
+{
+  vector<Point3> path;
+  for(size_t k=0; k<rt_->getWayPointCount(); k++)
+  {
+    Point3 p( rt_->getWayPoint(k).getGlobalLinkTransform(link).translation().x(),
+              rt_->getWayPoint(k).getGlobalLinkTransform(link).translation().y(),
+              rt_->getWayPoint(k).getGlobalLinkTransform(link).translation().z() );
+    path.push_back(p);
+  }
+  return path;
+}
+
+vector<double> TrajectoryFeatures::getTimes()
+{
+  vector<double> times;
+  for(size_t k=0; k<rt_->getWayPointCount();++k)
+    times.push_back( rt_->getWaypointDurationFromStart(k) );
+  return times;
+}
+
 void TrajectoryFeatures::computeAll()
 {
   features_.clear();
@@ -467,10 +633,48 @@ void TrajectoryFeatures::computeAll()
   computeLength();
   ROS_INFO("Compute accelerations");
   computeSquaredAccelerations();
-  ROS_INFO("Compute cartesian 1");
-  computeCartesianFeatures("r_wrist_roll_link");
-  ROS_INFO("Compute cartesian 2");
-  computeCartesianFeatures("r_elbow_flex_link");
   ROS_INFO("Compute joint limit distance");
   computeJointLimitDistance();
+  
+  ROS_INFO("Compute cartesian features");
+  vector<Point3> wrist_path, tool_path, elbow_path;
+  vector<double> times = getTimes();
+  wrist_path = getLinkPositions("r_wrist_roll_link");
+  tool_path = getLinkPositions("r_gripper_tool_frame");
+  elbow_path = getLinkPositions("r_elbow_flex_link");
+
+  computeCartesianFeatures("r_elbow_flex_link", "elbow");
+  computeCartesianFeatures("r_gripper_tool_frame", "tool");
+  computeCartesianFeatures("r_wrist_roll_link", "wrist");
+  
+  ROS_INFO("Compute comparison features");
+  PointInterp wrist_interp = getSplineInterpolation(wrist_path, times);
+  PointInterp elbow_interp = getSplineInterpolation(elbow_path, times);
+  PointInterp tool_interp = getSplineInterpolation(tool_path, times);
+
+  vector<Feat> wrist_bfs_haus = computeHausdorffFeatures(wrist_interp, bfs_path_, "wrist", "bfs");
+  vector<Feat> elbow_bfs_haus = computeHausdorffFeatures(elbow_interp, bfs_path_, "elbow", "bfs");
+  vector<Feat> tool_bfs_haus = computeHausdorffFeatures(tool_interp, bfs_path_, "tool", "bfs");
+  vector<Feat> wrist_elbow_haus = computeHausdorffFeatures(wrist_interp, elbow_interp, "wrist", "elbow");
+
+  add(wrist_bfs_haus);
+  add(elbow_bfs_haus);
+  add(tool_bfs_haus);
+  add(wrist_elbow_haus);
+  
+  double wrist_bfs_dtw = computeDTW(wrist_interp, bfs_path_);
+  double tool_bfs_dtw = computeDTW(tool_interp, bfs_path_);
+  double elbow_bfs_dtw = computeDTW(elbow_interp, bfs_path_);
+  double wrist_tool_dtw = computeDTW(wrist_interp, tool_interp);
+  
+  add("wrist_bfs_dtw",wrist_bfs_dtw);
+  add("tool_bfs_dtw",tool_bfs_dtw);
+  add("elbow_bfs_dtw",elbow_bfs_dtw);
+  add("wrist_tool_dtw",wrist_tool_dtw);
+}
+
+void TrajectoryFeatures::add(const vector<Feat>& feats)
+{
+  for(vector<Feat>::const_iterator f=feats.begin(); f<feats.end(); ++f)
+    add(f->first, f->second);
 }
