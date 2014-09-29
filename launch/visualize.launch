@@ -36,11 +36,13 @@
   <arg name="vis_dir" />
   <arg name="path_dir" />
   <arg name="save_dir" />
+  <arg name="vis_traj" default="true" />
 
   <node name="visualize" pkg="video_survey" type="visualize" 
     args="--planning_scene_topic $(arg planning_scene_topic)
           --display_pose_topic $(arg display_pose_topic)
           --camera_topic $(arg camera_topic)
+          --vis_traj $(arg vis_traj)
           --vis_dir $(arg vis_dir)
           --path_dir $(arg path_dir)
           --save_dir $(arg save_dir)" launch-prefix="$(arg launch_prefix)" respawn="false" output="screen">

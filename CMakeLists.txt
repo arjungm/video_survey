@@ -159,7 +159,7 @@ add_executable(move_cube src/cube_robot_move.cpp)
 target_link_libraries(move_cube ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 add_executable(visualize src/visualizer.cpp)
-target_link_libraries(visualize ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+target_link_libraries(visualize experiment_utils ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 # )
 

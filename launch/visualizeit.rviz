@@ -6,14 +6,18 @@ Panels:
       Expanded:
         - /MotionPlanning1
         - /MotionPlanning1/Scene Geometry1
-        - /MotionPlanning1/Scene Robot1
-        - /MotionPlanning1/Planning Request1
-        - /MotionPlanning1/Planning Metrics1
-        - /MotionPlanning1/Planned Path1
         - /RobotState1
-        - /Marker1
+        - /RobotState1/Links1
+        - /RobotState1/Links1/fr_caster_r_wheel_link1
+        - /RobotState1/Links1/l_forearm_link1
+        - /RobotState1/Links1/r_elbow_flex_link1
+        - /RobotState1/Links1/r_forearm_link1
+        - /RobotState1/Links1/r_forearm_roll_link1
+        - /RobotState1/Links1/r_upper_arm_link1
+        - /RobotState1/Links1/r_upper_arm_roll_link1
+        - /MarkerArray1
       Splitter Ratio: 0.566502
-    Tree Height: 287
+    Tree Height: 324
   - Class: rviz/Help
     Name: Help
   - Class: rviz/Views
@@ -531,7 +535,7 @@ Visualization Manager:
         Scene Alpha: 0.9
         Scene Color: 50; 230; 50
         Scene Display Time: 0.2
-        Show Scene Geometry: false
+        Show Scene Geometry: true
         Voxel Coloring: Z-Axis
         Voxel Rendering: Occupied Voxels
       Scene Robot:
@@ -987,7 +991,7 @@ Visualization Manager:
       Collision Enabled: false
       Enabled: true
       Links:
-        All Links Enabled: true
+        All Links Enabled: false
         Expand Joint Details: false
         Expand Link Details: false
         Expand Tree: false
@@ -1284,7 +1288,7 @@ Visualization Manager:
           Show Axes: false
           Show Trail: false
         r_elbow_flex_link:
-          Alpha: 1
+          Alpha: 0
           Show Axes: false
           Show Trail: false
           Value: true
@@ -1384,12 +1388,12 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-          Value: true
+          Value: false
         r_wrist_roll_link:
           Alpha: 1
           Show Axes: false
           Show Trail: false
-          Value: true
+          Value: false
         sensor_mount_link:
           Alpha: 1
           Show Axes: false
@@ -1437,11 +1441,19 @@ Visualization Manager:
       Value: true
       Visual Enabled: true
     - Class: rviz/Marker
-      Enabled: true
+      Enabled: false
       Marker Topic: /path_visualizations
       Name: Marker
       Namespaces:
-        paths: true
+        {}
+      Queue Size: 100
+      Value: false
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /path_visuals
+      Name: MarkerArray
+      Namespaces:
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -1461,17 +1473,17 @@ Visualization Manager:
       Class: rviz_animated_view_controller/Animated
       Control Mode: Orbit
       Current Placement Topic: /rviz/current_camera_placement
-      Distance: 2.00324
+      Distance: 3.64472
       Eye:
-        X: 0.713497
-        Y: -1.90371
-        Z: 2.08044
+        X: 2.44589
+        Y: 2.47902
+        Z: 2.34477
       Focus:
-        X: 0.429713
-        Y: -0.242253
-        Z: 0.997851
+        X: 0.429826
+        Y: -0.242248
+        Z: 0.997872
       Maintain Vertical Axis: true
-      Mouse Enabled: true
+      Mouse Enabled: false
       Name: Current View
       Near Clip Distance: 0.01
       Placement Topic: /rviz/camera_placement
@@ -1486,19 +1498,19 @@ Visualization Manager:
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: false
+    collapsed: true
   Height: 876
   Help:
     collapsed: false
-  Hide Left Dock: false
+  Hide Left Dock: true
   Hide Right Dock: false
   Motion Planning:
     collapsed: false
-  QMainWindow State: 000000ff00000000fd0000000200000000000001ae00000326fc0200000005fb000000100044006900730070006c0061007900730100000028000001b4000000dd00fffffffb0000000800480065006c00700000000342000000bb0000007600fffffffb0000000a0056006900650077007301000001e2000000dc000000b000fffffffb0000000c00430061006d00650072006100000002ff000001610000000000000000fb0000001a005200650063006f007200640065007200500061006e0065006c01000002c40000008a0000008500ffffff00000003000005490000017ffc0100000001fb0000001e004d006f00740069006f006e00200050006c0061006e006e0069006e006700000000f700000549000002a200ffffff0000044b0000032600000001000000020000000100000002fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd0000000200000000000001ae00000326fc0200000005fb000000100044006900730070006c0061007900730000000028000001d9000000dd00fffffffb0000000800480065006c00700000000342000000bb0000007600fffffffb0000000a005600690065007700730000000207000000b7000000b000fffffffb0000000c00430061006d00650072006100000002ff000001610000000000000000fb0000001a005200650063006f007200640065007200500061006e0065006c00000002c40000008a0000008500ffffff00000003000005490000017ffc0100000001fb0000001e004d006f00740069006f006e00200050006c0061006e006e0069006e006700000000f700000549000002a200ffffff000005ff0000032600000001000000020000000100000002fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   RecorderPanel:
-    collapsed: false
+    collapsed: true
   Views:
-    collapsed: false
+    collapsed: true
   Width: 1535
   X: 65
   Y: 24
