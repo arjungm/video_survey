@@ -446,8 +446,11 @@ double TrajectoryFeatures::computeDTW(const PointInterp& from_traj, const PointI
 {
   boost::function<double (size_t)> get_time = boost::bind(&robot_trajectory::RobotTrajectory::getWaypointDurationFromStart, rt_, _1);
   size_t N = rt_->getWayPointCount();
-  double* dtw = new double[N*N];
-  for(int i=0;i<(N*N);++i)
+  
+  const size_t dtw_size = (N+1)*(N+1);
+
+  double* dtw = new double[dtw_size];
+  for(int i=0;i<dtw_size;++i)
     dtw[i]=0.0;
 
   struct Ind
@@ -455,33 +458,34 @@ double TrajectoryFeatures::computeDTW(const PointInterp& from_traj, const PointI
     size_t stride_;
     Ind(size_t stride) : stride_(stride) {}
     size_t operator()(size_t i, size_t j){ return i+j*stride_; }
-  }ind(rt_->getWayPointCount());
+  }ind(rt_->getWayPointCount()+1);
+
   dtw[ind(0,0)] = 0;
   // i -> spline
   // j -> line
   double max_dist = numeric_limits<double>::min();
-  for(size_t i=1; i<N; ++i)
+  for(size_t i=1; i<N+1; ++i)
   {
-    double dist = linear_distance(to_traj(get_time(i)),from_traj(get_time(0)));
-    max_dist = max(max_dist, dist);
-    dtw[ind(i,0)] = dtw[ind(i-1,0)] + dist;
+    // double dist = linear_distance(to_traj(get_time(i)),from_traj(get_time(0)));
+    // max_dist = max(max_dist, dist);
+    dtw[ind(i,0)] = numeric_limits<double>::max();//dtw[ind(i-1,0)] + dist;
   }
-  for(size_t j=1; j<N; ++j)
+  for(size_t j=1; j<N+1; ++j)
   {
-    double dist = linear_distance(to_traj(get_time(0)),from_traj(get_time(j)));
-    max_dist = max(max_dist, dist);
-    dtw[ind(0,j)] = dtw[ind(0,j-1)] + dist;
+    // double dist = linear_distance(to_traj(get_time(0)),from_traj(get_time(j)));
+    // max_dist = max(max_dist, dist);
+    dtw[ind(0,j)] = numeric_limits<double>::max();;//dtw[ind(0,j-1)] + dist;
   }
-  for(size_t i=1; i<N; ++i)
+  for(size_t i=1; i<N+1; ++i)
   {
-    for(size_t j=1; j<N; ++j)
+    for(size_t j=1; j<N+1; ++j)
     {
-      double dist = linear_distance(to_traj(get_time(i)), from_traj(get_time(j)));
+      double dist = linear_distance( to_traj(get_time(i-1)), from_traj(get_time(j-1)) );
       dtw[ind(i,j)] = dist + min( dtw[ind(i-1,j-1)], min( dtw[ind(i,j-1)] , dtw[ind(i-1,j)] ) );
     }
   }
   
-  double cost = dtw[ind(N-1,N-1)];// (max_dist*N);
+  double cost = dtw[ind(N,N)];// (max_dist*N);
   delete dtw;
   return cost;
 }
