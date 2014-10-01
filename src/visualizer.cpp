@@ -360,7 +360,7 @@ int main(int argc, char** argv)
             publishView(trajectory_it->second.views[v], view_pub);
             ROS_INFO("Visualizing %d line segments", elbow_lines.points.size()+hand_lines.points.size()+bfs.points.size());
             visualization_msgs::MarkerArray path_visuals;
-            path_visuals.markers.push_back(elbow_lines);
+            // path_visuals.markers.push_back(elbow_lines);
             path_visuals.markers.push_back(hand_lines);
             path_visuals.markers.push_back(bfs);
 

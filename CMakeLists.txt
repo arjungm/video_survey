@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED COMPONENTS system filesystem)
 find_package(Eigen REQUIRED)
+find_package(OpenCV REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -105,6 +106,7 @@ include_directories(include)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${catkin_INCLUDE_DIRS})
 include_directories(${EIGEN_INCLUDE_DIRS})
+include_directories(${OpenCV_INCLUDE_DIRS})
 
 ## Declare a cpp library
 # add_library(video_survey
@@ -161,6 +163,8 @@ target_link_libraries(move_cube ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_executable(visualize src/visualizer.cpp)
 target_link_libraries(visualize experiment_utils ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+add_executable(select src/select_image.cpp)
+target_link_libraries(select experiment_utils ${catkin_LIBRARIES} ${Boost_LIBRARIES} ${OpenCV_LIBRARIES})
 # )
 
 #############
